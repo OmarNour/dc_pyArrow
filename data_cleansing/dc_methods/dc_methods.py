@@ -2,6 +2,7 @@ from sqlalchemy import create_engine
 import hashlib
 import pandas as pd
 import shutil
+import datetime
 # import data_cleansing.CONFIG.Config as DNXConfig
 
 import pyarrow.parquet as pq
@@ -15,7 +16,7 @@ def delete_dataset(data_set):
 
 
 def save_to_parquet(df, dataset_root_path, partition_cols=None, load_table_type=None):
-
+    start_time = datetime.datetime.now()
     if not df.empty:
         # if load_table_type == 'BT':
         # object_columns = df.select_dtypes(include='object')
@@ -24,22 +25,26 @@ def save_to_parquet(df, dataset_root_path, partition_cols=None, load_table_type=
 
         partial_results_table = pa.Table.from_pandas(df)
 
-        pq.write_to_dataset(partial_results_table, root_path=dataset_root_path, partition_cols=partition_cols)
+        pq.write_to_dataset(partial_results_table, root_path=dataset_root_path, partition_cols=partition_cols,
+                            # flavor='spark',
+                            use_dictionary=False
+                            )
+        # flavor = 'spark'
+        print("{:,}".format(len(df.index)), 'records inserted into', dataset_root_path, 'in', datetime.datetime.now() - start_time)
 
-def read_from_parquet(dataset_root_path, chunk_size, columns = None, be_ids_filter = None, process_no_filter = None):
+
+def read_from_parquet(dataset_root_path, chunk_size, columns = None, be_ids_filter = None):
 
     if chunk_size:
         # print('read_from_parquet', dataset_root_path, chunk_size)
-        table_batches = pq.read_table(dataset_root_path, nthreads=4, columns=columns).to_batches(chunk_size)
+        table_batches = pq.read_table(dataset_root_path, columns=columns).to_batches(chunk_size)
+        # tx = pa.RecordBatch.from_arrays(dataset_root_path,['e'],)
+        # print(tx)
         # print(table_batches)
         for table in table_batches:
             df = table.to_pandas()
             if be_ids_filter:
                 df = df[df[be_ids_filter[0]].isin(be_ids_filter[1])]
-            # if process_no_filter:
-            #     print('process_no_filter:', process_no_filter[0], process_no_filter[1])
-            #     print(df[process_no_filter[0]].head())
-                # df = df[df[process_no_filter[0]].isin(process_no_filter[1])]
             yield df
 
 def single_quotes(string):

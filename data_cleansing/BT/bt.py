@@ -6,7 +6,6 @@ import datetime
 import pandas as pd
 import os
 
-
 class StartBT:
     def __init__(self):
         pd.set_option('mode.chained_assignment', None)
@@ -82,7 +81,7 @@ class StartBT:
 
                     save_to_parquet(chunk_data, source_data_set, partition_cols=[self.dnx_config.process_no_column_name])
 
-                print("{:,}".format(count_rows), "record loaded into ", source_data_set, "in", datetime.datetime.now() - start_load_time)
+                # print("{:,}".format(count_rows), "record loaded into ", source_data_set, "in", datetime.datetime.now() - start_load_time)
 
     def melt_query_result(self,df_result,source_id):
 
@@ -130,10 +129,10 @@ class StartBT:
     def get_source_data(self, source_id, source_collection, process_no):
         att_query_df = self.get_att_ids_df(source_id)
         source_data_set = self.src_db_path + source_collection + '\\'+ self.dnx_config.process_no_column_name+'='+process_no
-        print('source_data_set:', source_data_set)
-        process_no_filter = [self.dnx_config.process_no_column_name, [process_no]]
+        # print('source_data_set:', source_data_set)
+        # process_no_filter = [self.dnx_config.process_no_column_name, [process_no]]
         for chunk_data in read_from_parquet(source_data_set, int(self.parameters_dict['temp_source_batch_size']),
-                                            columns = None, be_ids_filter = None, process_no_filter = process_no_filter):
+                                            columns = None, be_ids_filter = None):
             melt_chunk_data = self.melt_query_result(chunk_data, source_id)
             attach_attribute_id_result = self.attach_attribute_id(att_query_df, melt_chunk_data)
             source_data_df, bt_ids = attach_attribute_id_result[0], attach_attribute_id_result[1]
@@ -154,25 +153,10 @@ class StartBT:
 
         return current_data_set_old
 
-
     def get_current_data(self, current_dataset, bt_ids):
-
-        # current_data_set = self.dnx_db_path + bt_current_collection
-        # current_data_set_old = current_data_set + "_old"
-        # delete_dataset(current_data_set_old)
-        #
-        # basedir = self.dnx_config.module_path + '/' + self.dnx_config.parquet_db_name + '/' + self.dnx_config.dnx_db_name
-        #
-        # try:
-        #     os.rename(os.path.join(basedir, bt_current_collection),
-        #               os.path.join(basedir, bt_current_collection + "_old"))
-        # except:
-        #     print(basedir, "folder not found or unexpected error:", sys.exc_info()[0])
-
         current_data_df = pd.DataFrame(columns=self.bt_columns)
         be_ids_filter = [self.bt_columns[0], bt_ids]
         try:
-
             for chunk_data in read_from_parquet(current_dataset, int(self.parameters_dict['bt_batch_size']), None, be_ids_filter):
                 current_data_df = current_data_df.append(chunk_data)
         except:
@@ -294,13 +278,14 @@ class StartBT:
 
     def etl_be(self, source_id, bt_current_collection, bt_collection, source_collection, process_no, cpu_num_workers):
         # current_dataset = self.switch_bt_current_dataset(bt_current_collection)
+        current_data_set = self.dnx_db_path + bt_current_collection
+
         for source_data_df, bt_ids in self.get_source_data(source_id,source_collection,process_no):
-            # print(bt_ids)
-            current_data_set = self.dnx_db_path + bt_current_collection + "_old"
-            bt_current_data_df = self.get_current_data(current_data_set, bt_ids)
-            self.load_data(source_data_df, bt_current_data_df,
-                           bt_collection,
-                           bt_current_collection)
+            save_to_parquet(source_data_df, current_data_set)
+
+            # current_data_set_old = current_data_set + "_old"
+            # bt_current_data_df = self.get_current_data(current_data_set_old, bt_ids)
+            # self.load_data(source_data_df, bt_current_data_df, bt_collection, bt_current_collection)
 
     def get_be_ids(self):
         be_att_ids_query = "select distinct be_att_id from " + self.dnx_config.be_attributes_data_rules_lvls_collection + " where active = 1"
