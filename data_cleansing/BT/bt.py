@@ -281,11 +281,12 @@ class StartBT:
         current_data_set = self.dnx_db_path + bt_current_collection
 
         for source_data_df, bt_ids in self.get_source_data(source_id,source_collection,process_no):
-            save_to_parquet(source_data_df, current_data_set)
-
-            # current_data_set_old = current_data_set + "_old"
-            # bt_current_data_df = self.get_current_data(current_data_set_old, bt_ids)
-            # self.load_data(source_data_df, bt_current_data_df, bt_collection, bt_current_collection)
+            if int(self.parameters_dict['get_delta']) == 1:
+                current_data_set_old = current_data_set + "_old"
+                bt_current_data_df = self.get_current_data(current_data_set_old, bt_ids)
+                self.load_data(source_data_df, bt_current_data_df, bt_collection, bt_current_collection)
+            else:
+                save_to_parquet(source_data_df, current_data_set)
 
     def get_be_ids(self):
         be_att_ids_query = "select distinct be_att_id from " + self.dnx_config.be_attributes_data_rules_lvls_collection + " where active = 1"
