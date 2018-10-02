@@ -135,6 +135,7 @@ class StartBT:
         # print('source_data_set:', source_data_set)
         # process_no_filter = [self.dnx_config.process_no_column_name, [process_no]]
         table_batches = [table for table in pq.read_table(source_data_set, columns=None).to_batches(int(self.parameters_dict['temp_source_batch_size']))]
+        print('getsizeof source_data_set', sys.getsizeof(table_batches))
         for chunk_data in read_from_parquet(table_batches, be_ids_filter = None):
             melt_chunk_data = self.melt_query_result(chunk_data, source_id)
             attach_attribute_id_result = self.attach_attribute_id(att_query_df, melt_chunk_data)
@@ -282,14 +283,18 @@ class StartBT:
     def etl_be(self, source_id, bt_current_collection, bt_collection, source_collection, process_no, cpu_num_workers):
         # current_dataset = self.switch_bt_current_dataset(bt_current_collection)
         current_data_set = self.dnx_db_path + bt_current_collection
-        current_data_set_old = current_data_set + "_old"
-        try:
-            table_batches = [table for table in pq.read_table(current_data_set_old, columns=self.bt_columns).to_batches(int(self.parameters_dict['bt_batch_size']))]
-        except:
+        if int(self.parameters_dict['get_delta']) == 1:
+            current_data_set_old = current_data_set + "_old"
+            try:
+                table_batches = [table for table in pq.read_table(current_data_set_old, columns=self.bt_columns).to_batches(int(self.parameters_dict['bt_batch_size']))]
+                print('getsizeof current_data_set_old', sys.getsizeof(table_batches))
+            except:
+                table_batches = []
+        else:
             table_batches = []
 
         for source_data_df, bt_ids in self.get_source_data(source_id,source_collection,process_no):
-            if int(self.parameters_dict['get_delta']) == 1:
+            if len(table_batches) > 0:
                 bt_current_data_df = self.get_current_data(table_batches, bt_ids)
                 self.load_data(source_data_df, bt_current_data_df, bt_collection, bt_current_collection)
             else:
