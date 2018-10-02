@@ -33,15 +33,20 @@ def save_to_parquet(df, dataset_root_path, partition_cols=None, load_table_type=
         print("{:,}".format(len(df.index)), 'records inserted into', dataset_root_path, 'in', datetime.datetime.now() - start_time)
 
 
-def read_from_parquet(dataset_root_path, chunk_size, columns = None, be_ids_filter = None):
+def read_from_parquet(table_batches, be_ids_filter = None):
 
-    if chunk_size:
+    if len(table_batches) > 0 :
         # print('read_from_parquet', dataset_root_path, chunk_size)
-        table_batches = pq.read_table(dataset_root_path, columns=columns).to_batches(chunk_size)
+        # table_batches = pq.read_table(dataset_root_path, columns=columns).to_batches(chunk_size)
         # tx = pa.RecordBatch.from_arrays(dataset_root_path,['e'],)
         # print(tx)
         # print(table_batches)
+        # my_list = [1,2,3,4]
+        # x = (x ** 2 for x in my_list)
+        # table_batches = (table for table in pq.read_table(dataset_root_path, columns=columns).to_batches(chunk_size))
+        # print('table_batches2', table_batches)
         for table in table_batches:
+            # print('tabletable', table)
             df = table.to_pandas()
             if be_ids_filter:
                 df = df[df[be_ids_filter[0]].isin(be_ids_filter[1])]

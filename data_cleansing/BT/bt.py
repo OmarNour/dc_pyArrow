@@ -6,6 +6,9 @@ import datetime
 import pandas as pd
 import os
 
+import pyarrow.parquet as pq
+import pyarrow as pa
+
 class StartBT:
     def __init__(self):
         pd.set_option('mode.chained_assignment', None)
@@ -131,8 +134,8 @@ class StartBT:
         source_data_set = self.src_db_path + source_collection + '\\'+ self.dnx_config.process_no_column_name+'='+process_no
         # print('source_data_set:', source_data_set)
         # process_no_filter = [self.dnx_config.process_no_column_name, [process_no]]
-        for chunk_data in read_from_parquet(source_data_set, int(self.parameters_dict['temp_source_batch_size']),
-                                            columns = None, be_ids_filter = None):
+        table_batches = [table for table in pq.read_table(source_data_set, columns=None).to_batches(int(self.parameters_dict['temp_source_batch_size']))]
+        for chunk_data in read_from_parquet(table_batches, be_ids_filter = None):
             melt_chunk_data = self.melt_query_result(chunk_data, source_id)
             attach_attribute_id_result = self.attach_attribute_id(att_query_df, melt_chunk_data)
             source_data_df, bt_ids = attach_attribute_id_result[0], attach_attribute_id_result[1]
@@ -153,14 +156,14 @@ class StartBT:
 
         return current_data_set_old
 
-    def get_current_data(self, current_dataset, bt_ids):
+    def get_current_data(self, table_batches, bt_ids):
         current_data_df = pd.DataFrame(columns=self.bt_columns)
         be_ids_filter = [self.bt_columns[0], bt_ids]
         try:
-            for chunk_data in read_from_parquet(current_dataset, int(self.parameters_dict['bt_batch_size']), None, be_ids_filter):
+            for chunk_data in read_from_parquet(table_batches, be_ids_filter):
                 current_data_df = current_data_df.append(chunk_data)
         except:
-            print(current_dataset, "data set not found or unexpected error:", sys.exc_info()[0])
+            print("data set not found or unexpected error:", sys.exc_info()[0])
 
         # print(current_data_df)
         return current_data_df
@@ -279,11 +282,15 @@ class StartBT:
     def etl_be(self, source_id, bt_current_collection, bt_collection, source_collection, process_no, cpu_num_workers):
         # current_dataset = self.switch_bt_current_dataset(bt_current_collection)
         current_data_set = self.dnx_db_path + bt_current_collection
+        current_data_set_old = current_data_set + "_old"
+        try:
+            table_batches = [table for table in pq.read_table(current_data_set_old, columns=self.bt_columns).to_batches(int(self.parameters_dict['bt_batch_size']))]
+        except:
+            table_batches = []
 
         for source_data_df, bt_ids in self.get_source_data(source_id,source_collection,process_no):
             if int(self.parameters_dict['get_delta']) == 1:
-                current_data_set_old = current_data_set + "_old"
-                bt_current_data_df = self.get_current_data(current_data_set_old, bt_ids)
+                bt_current_data_df = self.get_current_data(table_batches, bt_ids)
                 self.load_data(source_data_df, bt_current_data_df, bt_collection, bt_current_collection)
             else:
                 save_to_parquet(source_data_df, current_data_set)
