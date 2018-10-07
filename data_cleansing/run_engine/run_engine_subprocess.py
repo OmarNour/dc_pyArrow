@@ -54,26 +54,31 @@ if __name__ == '__main__':
     result = get_cpu_count_cpu_num_workers(dnx_config.config_db_url, dnx_config.parameters_collection, no_of_subprocess=1)
     dq_cpu_count, dq_cpu_num_workers = result[0], result[1]
 
-    run_engine_query = "select BT, DQ from " + dnx_config.run_engine_collection + " where start_time = '' "
+    run_engine_query = "select RD, BT, DQ from " + dnx_config.run_engine_collection + " where start_time = '' "
     run_engine_data = get_all_data_from_source(dnx_config.config_db_url, None, run_engine_query)
 
     # run_engine_data = config_database[dnx_config.run_engine_collection].find({'start_time': ''})
     # print('run_engine_data', run_engine_query, run_engine_data)
     for i, run_engine_row in run_engine_data.iterrows():
         # print(run_engine_row)
+        RD = run_engine_row['RD']
         BT = run_engine_row['BT']
         DQ = run_engine_row['DQ']
 
         if BT == 1:
-            loading_source_data = subprocess.Popen(['python',
-                                                    module_path + '/load_source_data/load_source_data.py',
-                                                    str(bt_cpu_count)])
+            if RD == 1:
+                load_source_data_time = datetime.datetime.now()
+                loading_source_data = subprocess.Popen(['python',
+                                                        module_path + '/load_source_data/load_source_data.py',
+                                                        str(bt_cpu_count)])
 
-            while loading_source_data.poll() is None:
-                None
+                while loading_source_data.poll() is None:
+                    None
 
+                print('####################     load_source_data_time:', datetime.datetime.now() - load_source_data_time, '      ####################')
             # config_database[dnx_config.multiprocessing_collection].drop()
 
+            bt_time = datetime.datetime.now()
             for p in range(bt_cpu_count):
                 process_no = str(p)
                 # config_database[dnx_config.multiprocessing_collection].insert_one({dnx_config.multiprocessing_p_no: p,
@@ -110,6 +115,7 @@ if __name__ == '__main__':
                             None
 
             # 65,010,912 bt current
+            print('####################     bt_time:', datetime.datetime.now() - bt_time, '      ####################')
         if DQ == 1:
             for p in range(dq_cpu_count):
                 process_no = str(p)

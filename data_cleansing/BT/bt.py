@@ -9,6 +9,13 @@ import os
 import pyarrow.parquet as pq
 import pyarrow as pa
 
+# from pyspark import SparkConf
+# from pyspark.context import SparkContext
+# from pyspark.sql import SQLContext
+# sc = SparkContext.getOrCreate(SparkConf())
+#
+# sqlContext = SQLContext(sc)
+
 class StartBT:
     def __init__(self):
         pd.set_option('mode.chained_assignment', None)
@@ -292,6 +299,15 @@ class StartBT:
                 table_batches = []
         else:
             table_batches = []
+        ################# test pySpark ######################
+        # source_data_set = self.src_db_path + source_collection + '\\' + self.dnx_config.process_no_column_name + '=' + process_no
+        # current_data_set_old = current_data_set + "_old"
+        #
+        # src_df = sqlContext.read.parquet(source_data_set)
+        # current_bt_df = sqlContext.read.parquet(current_data_set_old)
+        # x = current_bt_df.join(src_df, current_bt_df.bt_id == src_df.bt_id, how='left_outer')
+        # print(x.show(n=100))
+        ################# test pySpark ######################
 
         for source_data_df, bt_ids in self.get_source_data(source_id,source_collection,process_no):
             if len(table_batches) > 0:
