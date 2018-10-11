@@ -1,6 +1,7 @@
 import sys
 from data_cleansing.dc_methods.dc_methods import get_all_data_from_source, sha1, single_quotes, data_to_list, \
-    get_chuncks_of_data_from_source, list_to_string, delete_dataset, save_to_parquet, assign_process_no, read_from_parquet, get_minimum_category
+    get_chuncks_of_data_from_source, list_to_string, delete_dataset, save_to_parquet, assign_process_no, read_from_parquet, get_minimum_category,\
+    read_from_parquet_drill, get_be_core_table_names
 import data_cleansing.CONFIG.Config as DNXConfig
 import datetime
 import pandas as pd
@@ -8,6 +9,7 @@ import os
 
 import pyarrow.parquet as pq
 import pyarrow as pa
+from pydrill.client import PyDrill
 
 # from pyspark import SparkConf
 # from pyspark.context import SparkContext
@@ -18,6 +20,7 @@ import pyarrow as pa
 
 class StartBT:
     def __init__(self):
+        self.process_no = None
         pd.set_option('mode.chained_assignment', None)
         self.dnx_config = DNXConfig.Config()
         self.parameters_dict = self.dnx_config.get_parameters_values()
@@ -26,10 +29,10 @@ class StartBT:
         self.src_db_path = parquet_db_root_path + self.dnx_config.src_db_name + '\\'
         self.dnx_db_path = parquet_db_root_path + self.dnx_config.dnx_db_name + '\\'
         self.result_db_path = parquet_db_root_path + self.dnx_config.result_db_name + '\\'
+        self.bt_columns = ['bt_id', 'SourceID', 'RowKey', 'AttributeID', 'BTSID', 'AttributeValue', 'RefSID',
+                           'HashValue', 'InsertedBy', 'ModifiedBy', 'ValidFrom', 'ValidTo',
+                           'IsCurrent', 'ResetDQStage', 'new_row', self.dnx_config.process_no_column_name]
 
-    bt_columns = ['bt_id', 'SourceID', 'RowKey', 'AttributeID', 'BTSID', 'AttributeValue', 'RefSID',
-                  'HashValue', 'InsertedBy', 'ModifiedBy', 'ValidFrom', 'ValidTo',
-                  'IsCurrent', 'ResetDQStage', 'new_row']
 
     def get_source_connection_credentials(self, source_id):
         be_data_sources_query = 'select query, org_connection_id from ' + self.dnx_config.be_data_sources_collection + ' where _id = ' + single_quotes(source_id)
@@ -57,7 +60,7 @@ class StartBT:
         for i, be_id in be_ids.iterrows():
             be_id = be_id['be_id']
             be_source_ids = self.get_be_source_ids(be_id)
-            core_tables = self.get_core_table_names(be_id)
+            core_tables = get_be_core_table_names(self.dnx_config.config_db_url, self.dnx_config.org_business_entities_collection, be_id)
             bt_current_collection, bt_collection, source_collection = core_tables[0], core_tables[1], core_tables[2]
             self.switch_bt_current_dataset(bt_current_collection)
             # print(be_source_ids)
@@ -108,6 +111,7 @@ class StartBT:
         df_melt_result['ValidTo'] = None
         df_melt_result['IsCurrent'] = 1
         df_melt_result['bt_id'] = 0
+        df_melt_result[self.dnx_config.process_no_column_name] = self.process_no
         # df_melt_result['ResetDQStage'] = 0
         return df_melt_result
 
@@ -133,6 +137,7 @@ class StartBT:
         new_rows_df = new_rows_df[new_rows_df['AttributeID'].notnull()]
         new_rows_df['AttributeID'] = new_rows_df.AttributeID.astype('int64')
         new_rows_df['bt_id'] = new_rows_df['SourceID'].astype(str) + new_rows_df['AttributeID'].astype(str) + new_rows_df['RowKey']
+
         bt_ids = data_to_list(new_rows_df['bt_id'])
         return new_rows_df[self.bt_columns], bt_ids
 
@@ -141,7 +146,7 @@ class StartBT:
         source_data_set = self.src_db_path + source_collection + '\\'+ self.dnx_config.process_no_column_name+'='+process_no
         # print('source_data_set:', source_data_set)
         # process_no_filter = [self.dnx_config.process_no_column_name, [process_no]]
-        table_batches = [table for table in pq.read_table(source_data_set, columns=None).to_batches(int(self.parameters_dict['temp_source_batch_size']))]
+        table_batches = [table for table in pq.read_table(source_data_set, columns=None, nthreads=4).to_batches(int(self.parameters_dict['temp_source_batch_size']))]
         print('getsizeof source_data_set', sys.getsizeof(table_batches))
         for chunk_data in read_from_parquet(table_batches, be_ids_filter = None):
             melt_chunk_data = self.melt_query_result(chunk_data, source_id)
@@ -254,12 +259,12 @@ class StartBT:
               'time elapsed:', end_time - start_time)
         return bt_modified_df, bt_expired_data_df, new_data_df, etl_occurred, expired_ids, bt_same_df
 
-    def load_data(self, p_source_data, p_current_data, bt_collection, bt_current_collection):
+    def load_data(self, p_source_data, p_current_data, bt_data_set, bt_current_data_set):
 
         get_delta_result = self.get_delta(p_source_data, p_current_data)
 
-        bt_current_data_set = self.dnx_db_path + bt_current_collection
-        bt_data_set = self.dnx_db_path + bt_collection
+        # bt_current_data_set = self.dnx_db_path + bt_current_collection
+        # bt_data_set = self.dnx_db_path + bt_collection
 
 
         same_df = get_delta_result[5]
@@ -288,33 +293,31 @@ class StartBT:
             # self.parallel_data_manipulation.append(manipulate)
 
     def etl_be(self, source_id, bt_current_collection, bt_collection, source_collection, process_no, cpu_num_workers):
-        # current_dataset = self.switch_bt_current_dataset(bt_current_collection)
-        current_data_set = self.dnx_db_path + bt_current_collection
-        if int(self.parameters_dict['get_delta']) == 1:
-            current_data_set_old = current_data_set + "_old"
-            try:
-                table_batches = [table for table in pq.read_table(current_data_set_old, columns=self.bt_columns).to_batches(int(self.parameters_dict['bt_batch_size']))]
-                print('getsizeof current_data_set_old', sys.getsizeof(table_batches))
-            except:
-                table_batches = []
-        else:
-            table_batches = []
-        ################# test pySpark ######################
-        # source_data_set = self.src_db_path + source_collection + '\\' + self.dnx_config.process_no_column_name + '=' + process_no
-        # current_data_set_old = current_data_set + "_old"
-        #
-        # src_df = sqlContext.read.parquet(source_data_set)
-        # current_bt_df = sqlContext.read.parquet(current_data_set_old)
-        # x = current_bt_df.join(src_df, current_bt_df.bt_id == src_df.bt_id, how='left_outer')
-        # print(x.show(n=100))
-        ################# test pySpark ######################
-
-        for source_data_df, bt_ids in self.get_source_data(source_id,source_collection,process_no):
-            if len(table_batches) > 0:
-                bt_current_data_df = self.get_current_data(table_batches, bt_ids)
-                self.load_data(source_data_df, bt_current_data_df, bt_collection, bt_current_collection)
+        base_bt_current_data_set = self.dnx_db_path + bt_current_collection
+        bt_data_set = self.dnx_db_path + bt_collection
+        # if int(self.parameters_dict['get_delta']) == 1:
+        #     current_data_set_old = bt_current_data_set + "_old"
+        #     try:
+        #         table_batches = [table for table in pq.read_table(current_data_set_old, columns=self.bt_columns).to_batches(int(self.parameters_dict['bt_batch_size']))]
+        #         print('getsizeof current_data_set_old', sys.getsizeof(table_batches))
+        #     except:
+        #         table_batches = []
+        # else:
+        #     table_batches = []
+        drill = PyDrill(host='localhost', port=8047)
+        for i, get_source_data in enumerate(self.get_source_data(source_id,source_collection,process_no)):
+            bt_current_data_set = base_bt_current_data_set + "\\" + str(i)
+            source_data_df, bt_ids = get_source_data[0], get_source_data[1]
+            if int(self.parameters_dict['get_delta']) == 1:
+                bt_current_collection_old = bt_current_collection + "_old"
+                bt_current_data_df = read_from_parquet_drill(self.dnx_config.drill_parquet_db_root_path,
+                                                             self.dnx_config.dnx_db_name, bt_current_collection_old, self.bt_columns,
+                                                             be_ids_filter=bt_ids,
+                                                             drill=drill)
+                # bt_current_data_df = self.get_current_data(table_batches, bt_ids)
+                self.load_data(source_data_df, bt_current_data_df, bt_data_set, bt_current_data_set)
             else:
-                save_to_parquet(source_data_df, current_data_set)
+                save_to_parquet(source_data_df, bt_current_data_set, partition_cols=[self.dnx_config.process_no_column_name])
 
     def get_be_ids(self):
         be_att_ids_query = "select distinct be_att_id from " + self.dnx_config.be_attributes_data_rules_lvls_collection + " where active = 1"
@@ -337,22 +340,15 @@ class StartBT:
 
         return be_source_ids
 
-    def get_core_table_names(self, be_id):
-        org_business_entities_collection_query = 'select * from ' + self.dnx_config.org_business_entities_collection + ' where _id = ' + single_quotes(be_id)
-
-        bt_current_collection = list_to_string(get_all_data_from_source(self.dnx_config.config_db_url, None, org_business_entities_collection_query)['bt_current_collection'].values)
-        bt_collection = list_to_string(get_all_data_from_source(self.dnx_config.config_db_url, None, org_business_entities_collection_query)['bt_collection'].values)
-        source_collection = list_to_string(get_all_data_from_source(self.dnx_config.config_db_url, None, org_business_entities_collection_query)['source_collection'].values)
-        return bt_current_collection, bt_collection, source_collection
-
     def start_bt(self, process_no, cpu_num_workers):
         start_time = datetime.datetime.now()
         be_ids = self.get_be_ids()
+        self.process_no = process_no
 
         for i, be_id in be_ids.iterrows():
             be_id = be_id['be_id']
 
-            core_tables = self.get_core_table_names(be_id)
+            core_tables = get_be_core_table_names(self.dnx_config.config_db_url, self.dnx_config.org_business_entities_collection, be_id)
             bt_current_collection, bt_collection, source_collection = core_tables[0], core_tables[1], core_tables[2]
 
             be_source_ids = self.get_be_source_ids(be_id)

@@ -6,9 +6,11 @@ import sys
 
 class Config:
     # config_file_path = 'D:/github/Python/Data_Cleansing/data_cleansing/dnx_config.xlsx'
-    config_db_url = 'sqlite:///C:/Users/Omar/PycharmProjects/data_cleansing/data_cleansing/dnx_config_db.db'
-    parquet_db_name = 'D:\parquet_db'
+    config_db_url = 'sqlite:///C:/Users/ON250000/PycharmProjects/data_cleansing/data_cleansing/dnx_config_db.db'
+    parquet_db_name = 'C:\dc\parquet_db'
     parquet_db_root_path = parquet_db_name+"\\"
+
+    drill_parquet_db_root_path = '/opt/parquet_db/'
 
     config_db_name = 'DNX_config'
     src_db_name = 'Source_data'

@@ -3,10 +3,15 @@ import hashlib
 import pandas as pd
 import shutil
 import datetime
-# import data_cleansing.CONFIG.Config as DNXConfig
-
 import pyarrow.parquet as pq
 import pyarrow as pa
+from pydrill.client import PyDrill
+import os
+
+
+def count_folders_in_dir(path):
+    return len(os.listdir(path))
+
 
 def delete_dataset(data_set):
     try:
@@ -33,7 +38,16 @@ def save_to_parquet(df, dataset_root_path, partition_cols=None, load_table_type=
         print("{:,}".format(len(df.index)), 'records inserted into', dataset_root_path, 'in', datetime.datetime.now() - start_time)
 
 
-def read_from_parquet(table_batches, be_ids_filter = None):
+def read_batches_from_parquet(dataset_root_path, columns, batch_size):
+
+    for table in (table for table in pq.read_table(dataset_root_path,
+                                                      columns=columns,
+                                                      nthreads=4).to_batches(batch_size)):
+        df = table.to_pandas()
+        yield df
+
+
+def read_from_parquet(table_batches, be_ids_filter=None):
 
     if len(table_batches) > 0 :
         # print('read_from_parquet', dataset_root_path, chunk_size)
@@ -199,7 +213,54 @@ def list_to_string(list, separator = None, quotes = 0):
     to_string = prefix.join((single_quotes(str(x)) if quotes == 1 else str(x)) if x is not None else "" for x in list)
 
     return to_string
-# if __name__ == '__main__':
+
+
+def read_from_parquet_drill(db_root_path, schema, table, columns_list, be_ids_filter=None, drill=None):
+    # drill = PyDrill(host='localhost', port=8047)
+
+    select = 'SELECT '
+    columns = list_to_string(list=columns_list, separator=',', quotes=0)
+    source = '''`''' + db_root_path + '/' + schema + '/' + table + '''`'''
+    from_source = ' from dfs.' + source
+    if be_ids_filter:
+        where = ' where bt_id in (' + list_to_string(list=be_ids_filter, separator=',', quotes=1) + ')'
+    else:
+        where = ''
+    full_query = select + columns + from_source + where
+    # print('full_query', full_query)
+    try:
+
+        query_result_df = drill.query(full_query,timeout=1000).to_dataframe()
+    except:
+        query_result_df = pd.DataFrame(columns=columns_list)
+
+    return query_result_df
+
+
+def get_be_core_table_names(config_db, org_business_entities, be_id):
+    org_business_entities_collection_query = 'select * from ' + org_business_entities + ' where _id = ' + single_quotes(be_id)
+
+    bt_current_collection = list_to_string(get_all_data_from_source(config_db, None, org_business_entities_collection_query)['bt_current_collection'].values)
+    bt_collection = list_to_string(get_all_data_from_source(config_db, None, org_business_entities_collection_query)['bt_collection'].values)
+    source_collection = list_to_string(get_all_data_from_source(config_db, None, org_business_entities_collection_query)['source_collection'].values)
+    dq_result_collection = list_to_string(get_all_data_from_source(config_db, None, org_business_entities_collection_query)['dq_result_collection'].values)
+    return bt_current_collection, bt_collection, source_collection, dq_result_collection
+
+
+if __name__ == '__main__':
+    dataset = 'C:\dc\parquet_db\DNX\BT_current_4383_10\\'
+    col = ['SourceID', 'RowKey', 'AttributeID', 'AttributeValue', 'ResetDQStage']
+    # dataset = 'C:\dc\parquet_db\Source_data\src_4383_10'
+    # col = None
+    total_rows = 0
+    folders_count = count_folders_in_dir(dataset)
+    for f in range(folders_count):
+        complete_dataset = dataset + str(f)
+        for i in read_batches_from_parquet(complete_dataset, col, 200000):
+            print(type(i))
+            total_rows += len(i.index)
+    print('total rows:', total_rows)
+
 #     import data_cleansing.CONFIG.Config as config
 #     config_db_url = config.Config.config_db_url
 

@@ -51,7 +51,7 @@ if __name__ == '__main__':
     result = get_cpu_count_cpu_num_workers(dnx_config.config_db_url, dnx_config.parameters_collection, no_of_subprocess=None)
     bt_cpu_count, bt_cpu_num_workers = result[0], result[1]
 
-    result = get_cpu_count_cpu_num_workers(dnx_config.config_db_url, dnx_config.parameters_collection, no_of_subprocess=1)
+    result = get_cpu_count_cpu_num_workers(dnx_config.config_db_url, dnx_config.parameters_collection, no_of_subprocess=None)
     dq_cpu_count, dq_cpu_num_workers = result[0], result[1]
 
     run_engine_query = "select RD, BT, DQ from " + dnx_config.run_engine_collection + " where start_time = '' "

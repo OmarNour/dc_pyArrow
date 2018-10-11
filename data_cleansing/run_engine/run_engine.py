@@ -1,6 +1,7 @@
 import sys
 # sys.path.append("C:\\Users\\Omar\\PycharmProjects\\data_cleansing")
 from data_cleansing.BT.bt import StartBT
+from data_cleansing.DQ.dq import StartDQ
 import os
 
 
@@ -35,8 +36,7 @@ if __name__ == '__main__':
         bt.start_bt(str(process_no), cpu_num_workers)
         # print('----------------     BT_time:', datetime.datetime.now() - BT_time, '      ----------------')
     if DQ == 1:
-        None
         # DQ_time = datetime.datetime.now()
-        # start_dq = StartDQ()
-        # start_dq.start_dq(cpu_num_workers)
+        start_dq = StartDQ()
+        start_dq.start_dq(str(process_no), cpu_num_workers)
         # print('----------------     DQ_time:', datetime.datetime.now() - DQ_time, '      ----------------')
