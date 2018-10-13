@@ -27,12 +27,17 @@ def delete_dataset(data_set):
         None
 
 
-def save_to_parquet(df, dataset_root_path, partition_cols=None, load_table_type=None):
+def save_to_parquet(df, dataset_root_path, partition_cols=None, string_columns=None):
     start_time = datetime.datetime.now()
     if not df.empty:
-        # if load_table_type == 'BT':
-        object_columns = df.select_dtypes(include='object')
-        for i in object_columns.columns:
+
+        # all_object_columns = df.select_dtypes(include='object').columns
+        # print(all_object_columns)
+
+        if string_columns is None:
+            string_columns = df.columns
+
+        for i in string_columns:
             df[i] = df[i].apply(str)
 
         partial_results_table = pa.Table.from_pandas(df)
@@ -185,7 +190,8 @@ def get_minimum_category(url, schema, table_name, be_att_id):
 
     # print(min_cat)
 
-    return min_cat
+    return int(min_cat)
+
 
 def get_parameter_values(config_db_url, parameter_table):
     query = "select * from " + parameter_table

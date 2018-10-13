@@ -67,7 +67,8 @@ class StartDQ:
 
         if not result_df.empty:
             if g_result == 1:
-                save_to_parquet(result_df, result_data_set)
+                # print('result_data_set.columns', result_df.columns)
+                save_to_parquet(result_df, result_data_set, partition_cols=['ResetDQStage', 'SourceID', 'be_att_dr_id', 'AttributeID', 'data_rule_id'])
             else:
                 if next_pass == 1:
                     next_df = result_df[result_df['is_issue'] == 0][['RowKey']]
@@ -96,6 +97,7 @@ class StartDQ:
 
         result_data_set_tmp_old = self.switch_result_dataset_tmp(result_data_set_tmp)
         for bt_current_data_df in self.get_bt_current_data(base_bt_current_data_set, columns, filter):
+
             if current_lvl_no > 1:
                 result_df = pd.DataFrame()
                 for row_keys_df in self.get_tmp_rowkeys(result_data_set_tmp_old): # filter with level number too!
@@ -106,7 +108,6 @@ class StartDQ:
                         result_df = result_df.append(result_lvl_df)
 
             else:
-                print('info bt_current_data_df', bt_current_data_df.info())
                 result_df = self.validate_data_rule(bt_current_data_df, be_att_dr_id, rule_id)
             self.insert_result_df(result_df, g_result, result_data_set, next_pass, next_fail, result_data_set_tmp)
 

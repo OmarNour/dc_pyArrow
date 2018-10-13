@@ -32,6 +32,8 @@ class StartBT:
         self.bt_columns = ['bt_id', 'SourceID', 'RowKey', 'AttributeID', 'BTSID', 'AttributeValue', 'RefSID',
                            'HashValue', 'InsertedBy', 'ModifiedBy', 'ValidFrom', 'ValidTo',
                            'IsCurrent', 'ResetDQStage', 'new_row', self.dnx_config.process_no_column_name]
+        self.bt_object_cols = ['bt_id', 'SourceID', 'RowKey', 'AttributeValue', 'RefSID', 'HashValue',
+                               'InsertedBy', 'ModifiedBy', 'ValidFrom', 'ValidTo', 'process_no']
 
 
     def get_source_connection_credentials(self, source_id):
@@ -137,6 +139,7 @@ class StartBT:
         new_rows_df = new_rows_df[new_rows_df['AttributeID'].notnull()]
         new_rows_df['AttributeID'] = new_rows_df.AttributeID.astype('int64')
         new_rows_df['bt_id'] = new_rows_df['SourceID'].astype(str) + new_rows_df['AttributeID'].astype(str) + new_rows_df['RowKey']
+        new_rows_df['ResetDQStage'] = new_rows_df.ResetDQStage.astype('int64')
 
         bt_ids = data_to_list(new_rows_df['bt_id'])
         return new_rows_df[self.bt_columns], bt_ids
@@ -260,7 +263,7 @@ class StartBT:
 
 
         same_df = get_delta_result[5]
-        save_to_parquet(same_df, bt_current_data_set)
+        save_to_parquet(same_df, bt_current_data_set, None, self.bt_object_cols)
 
         if get_delta_result[3] in (0,2): #etl_occurred
             assert len(get_delta_result[0]) == len(get_delta_result[1])
@@ -269,8 +272,8 @@ class StartBT:
             expired_df = get_delta_result[1]
             expired_ids = get_delta_result[4]
 
-            save_to_parquet(modified_df, bt_current_data_set)
-            save_to_parquet(expired_df, bt_data_set)
+            save_to_parquet(modified_df, bt_current_data_set, None, self.bt_object_cols)
+            save_to_parquet(expired_df, bt_data_set, None, self.bt_object_cols)
             # print('expired_ids:', expired_ids)
             # manipulate = self.manipulate_etl_data(bt_collection, expired_df, expired_ids, bt_current_collection)  # expired data
             # self.parallel_data_manipulation.append(manipulate)
@@ -280,7 +283,7 @@ class StartBT:
 
         if get_delta_result[3] in (1, 2):  # etl_occurred
             new_data_df = get_delta_result[2]
-            save_to_parquet(new_data_df, bt_current_data_set)
+            save_to_parquet(new_data_df, bt_current_data_set, None, self.bt_object_cols)
             # manipulate = self.manipulate_etl_data(bt_current_collection, new_data_df)  # new data
             # self.parallel_data_manipulation.append(manipulate)
 
@@ -309,7 +312,7 @@ class StartBT:
                 # bt_current_data_df = self.get_current_data(table_batches, bt_ids)
                 self.load_data(source_data_df, bt_current_data_df, bt_data_set, bt_current_data_set)
             else:
-                save_to_parquet(source_data_df, bt_current_data_set, partition_cols=[self.dnx_config.process_no_column_name])
+                save_to_parquet(source_data_df, bt_current_data_set, [self.dnx_config.process_no_column_name], self.bt_object_cols)
 
     def get_be_ids(self):
         be_att_ids_query = "select distinct be_att_id from " + self.dnx_config.be_attributes_data_rules_lvls_collection + " where active = 1"
