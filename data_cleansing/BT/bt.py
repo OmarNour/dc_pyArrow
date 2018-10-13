@@ -1,7 +1,7 @@
 import sys
 from data_cleansing.dc_methods.dc_methods import get_all_data_from_source, sha1, single_quotes, data_to_list, \
     get_chuncks_of_data_from_source, list_to_string, delete_dataset, save_to_parquet, assign_process_no, read_from_parquet, get_minimum_category,\
-    read_from_parquet_drill, get_be_core_table_names
+    read_from_parquet_drill, get_be_core_table_names, rename_dataset
 import data_cleansing.CONFIG.Config as DNXConfig
 import datetime
 import pandas as pd
@@ -155,18 +155,10 @@ class StartBT:
             yield source_data_df, bt_ids
 
     def switch_bt_current_dataset(self, bt_current_collection):
-        # print('switch_bt_current_dataset', os.path.dirname(sys.modules['data_cleansing.BT'].__file__))
-        # print('switch_bt_current_dataset2', self.dnx_db_path)
         current_data_set = self.dnx_db_path + bt_current_collection
         current_data_set_old = current_data_set + "_old"
         delete_dataset(current_data_set_old)
-
-        try:
-            os.rename(current_data_set,
-                      current_data_set_old)
-        except:
-            print(current_data_set, "folder not found or unexpected error:", sys.exc_info()[0])
-
+        rename_dataset(current_data_set, current_data_set_old)
         return current_data_set_old
 
     def get_current_data(self, table_batches, bt_ids):

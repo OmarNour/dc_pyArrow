@@ -51,7 +51,7 @@ if __name__ == '__main__':
     result = get_cpu_count_cpu_num_workers(dnx_config.config_db_url, dnx_config.parameters_collection, no_of_subprocess=None)
     bt_cpu_count, bt_cpu_num_workers = result[0], result[1]
 
-    result = get_cpu_count_cpu_num_workers(dnx_config.config_db_url, dnx_config.parameters_collection, no_of_subprocess=None)
+    result = get_cpu_count_cpu_num_workers(dnx_config.config_db_url, dnx_config.parameters_collection, no_of_subprocess=1)
     dq_cpu_count, dq_cpu_num_workers = result[0], result[1]
 
     run_engine_query = "select RD, BT, DQ from " + dnx_config.run_engine_collection + " where start_time = '' "
@@ -117,6 +117,7 @@ if __name__ == '__main__':
             # 65,010,912 bt current
             print('####################     bt_time:', datetime.datetime.now() - bt_time, '      ####################')
         if DQ == 1:
+            dq_time = datetime.datetime.now()
             for p in range(dq_cpu_count):
                 process_no = str(p)
                 dq_process_dict[process_no] = subprocess.Popen(['python',
@@ -138,10 +139,11 @@ if __name__ == '__main__':
                             process_list.remove(p_no)
                             count_finished_processes += 1
                             print('-----------------------------------------------------------')
-                            print('DQ Process no.', p_no, 'finished, total finished', count_finished_processes, 'out of', bt_cpu_count)
+                            print('DQ Process no.', p_no, 'finished, total finished', count_finished_processes, 'out of', dq_cpu_count)
 
                         except:
                             None
+            print('####################     dq_time:', datetime.datetime.now() - dq_time, '      ####################')
 
         # config_database[dnx_config.run_engine_collection].update_one({'_id': i['_id']}, {'$set': {'end_time': datetime.datetime.now()}})
         print('####################     total time:', datetime.datetime.now() - run_time, '      ####################')

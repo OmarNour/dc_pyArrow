@@ -6,11 +6,18 @@ import datetime
 import pyarrow.parquet as pq
 import pyarrow as pa
 from pydrill.client import PyDrill
-import os
+import os, sys
 
 
 def count_folders_in_dir(path):
     return len(os.listdir(path))
+
+def rename_dataset(current_name, new_name):
+    try:
+        os.rename(current_name,
+                  new_name)
+    except:
+        print(current_name, "folder not found or unexpected error:", sys.exc_info()[0])
 
 
 def delete_dataset(data_set):
@@ -24,8 +31,8 @@ def save_to_parquet(df, dataset_root_path, partition_cols=None, load_table_type=
     start_time = datetime.datetime.now()
     if not df.empty:
         # if load_table_type == 'BT':
-        # object_columns = df.select_dtypes(include='object')
-        for i in df.columns:
+        object_columns = df.select_dtypes(include='object')
+        for i in object_columns.columns:
             df[i] = df[i].apply(str)
 
         partial_results_table = pa.Table.from_pandas(df)
@@ -124,23 +131,6 @@ def assign_process_no(no_of_cores, index):
     return process_no
 
 
-def get_sub_data(mongo_uri, mongo_db, collection_name,start_index, end_index, ids=None, collection_filter=None, collection_project=None):
-    client = pymongo.MongoClient(mongo_uri)
-    database = client[mongo_db]
-    if ids is None:
-        if collection_filter is None:
-            collection_filter = {}
-        if collection_project is None:
-            collection_data = database[collection_name].find(collection_filter, no_cursor_timeout=True).skip(start_index).limit(end_index-start_index)
-        else:
-            collection_data = database[collection_name].find(collection_filter, collection_project, no_cursor_timeout=True).skip(start_index).limit(end_index-start_index)
-
-        # collection_data = collection_data[start_index: end_index]
-    # else:
-    #     collection_data = database[collection_name].find({'_id': {'$in': ids}})
-    return collection_data
-
-
 def data_to_list(data):
 
     # print('size of datadata ',sys.getsizeof(data))
@@ -186,7 +176,6 @@ def get_start_end_index(total_rows, chunk_size):
 
 def get_minimum_category(url, schema, table_name, be_att_id):
     min_category_query = "select min(category_no) min_category_no from "+ table_name +" where be_att_id = "+single_quotes(be_att_id)+" group by be_att_id"
-    # print(min_category_query)
     min_category_data = get_all_data_from_source(url, schema, min_category_query)
 
     if not min_category_data.empty:
