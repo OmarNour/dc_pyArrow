@@ -24,11 +24,13 @@ class StartDQ:
             return 'A' * len(str(att_value))
 
     def validate_data_rule(self, bt_current_data_df, be_att_dr_id, data_rule_id):
-        result_df = bt_current_data_df
-        result_df['be_att_dr_id'] = be_att_dr_id
-        result_df['data_rule_id'] = data_rule_id
-        result_df['is_issue'] = result_df.apply(lambda x: dr.rules_orchestrate(x['AttributeValue'], data_rule_id), axis=1)
-        result_df['data_value_pattern'] = result_df['AttributeValue'].apply(self.get_data_value_pattern)
+        result_df = pd.DataFrame()
+        if not bt_current_data_df.empty:
+            result_df = bt_current_data_df
+            result_df['be_att_dr_id'] = be_att_dr_id
+            result_df['data_rule_id'] = data_rule_id
+            result_df['is_issue'] = result_df.apply(lambda x: dr.rules_orchestrate(x['AttributeValue'], data_rule_id), axis=1)
+            result_df['data_value_pattern'] = result_df['AttributeValue'].apply(self.get_data_value_pattern)
         return result_df
 
     def get_categories(self):
@@ -104,6 +106,7 @@ class StartDQ:
                         result_df = result_df.append(result_lvl_df)
 
             else:
+                print('info bt_current_data_df', bt_current_data_df.info())
                 result_df = self.validate_data_rule(bt_current_data_df, be_att_dr_id, rule_id)
             self.insert_result_df(result_df, g_result, result_data_set, next_pass, next_fail, result_data_set_tmp)
 
