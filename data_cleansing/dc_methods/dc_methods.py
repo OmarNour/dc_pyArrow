@@ -9,6 +9,9 @@ from pydrill.client import PyDrill
 import os, sys
 
 
+bt_object_cols = ['bt_id', 'SourceID', 'RowKey', 'AttributeValue', 'RefSID', 'HashValue',
+                               'InsertedBy', 'ModifiedBy', 'ValidFrom', 'ValidTo', 'process_no']
+
 def count_folders_in_dir(path):
     return len(os.listdir(path))
 
@@ -50,11 +53,11 @@ def save_to_parquet(df, dataset_root_path, partition_cols=None, string_columns=N
         print("{:,}".format(len(df.index)), 'records inserted into', dataset_root_path, 'in', datetime.datetime.now() - start_time)
 
 
-def read_batches_from_parquet(dataset_root_path, columns, batch_size):
+def read_batches_from_parquet(dataset_root_path, columns, batch_size, nthreads):
 
     for table in (table for table in pq.read_table(dataset_root_path,
                                                       columns=columns,
-                                                      nthreads=4).to_batches(batch_size)):
+                                                      use_threads=nthreads).to_batches(batch_size)):
         df = table.to_pandas()
         yield df
 
@@ -251,8 +254,15 @@ if __name__ == '__main__':
     folders_count = count_folders_in_dir(dataset)
     for f in range(folders_count):
         complete_dataset = dataset + str(f)
-        for i in read_batches_from_parquet(complete_dataset, col, 200000):
+        print(complete_dataset)
+        for i in read_batches_from_parquet(complete_dataset, col, 200000, 4):
             print(type(i))
+            print(i.columns)
+            print(i[['AttributeID', 'ResetDQStage']])
+            # i['ResetDQStage'] = 2
+            # print(i['ResetDQStage'])
+            # xx = i.reset_index()
+            # x = xx[xx['ResetDQStage']==1]
             total_rows += len(i.index)
     print('total rows:', total_rows)
 

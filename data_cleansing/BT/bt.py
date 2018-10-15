@@ -1,7 +1,7 @@
 import sys
 from data_cleansing.dc_methods.dc_methods import get_all_data_from_source, sha1, single_quotes, data_to_list, \
     get_chuncks_of_data_from_source, list_to_string, delete_dataset, save_to_parquet, assign_process_no, read_from_parquet, get_minimum_category,\
-    read_from_parquet_drill, get_be_core_table_names, rename_dataset
+    read_from_parquet_drill, get_be_core_table_names, rename_dataset, read_batches_from_parquet, bt_object_cols
 import data_cleansing.CONFIG.Config as DNXConfig
 import datetime
 import pandas as pd
@@ -10,6 +10,7 @@ import os
 import pyarrow.parquet as pq
 import pyarrow as pa
 from pydrill.client import PyDrill
+import swifter
 
 # from pyspark import SparkConf
 # from pyspark.context import SparkContext
@@ -32,9 +33,9 @@ class StartBT:
         self.bt_columns = ['bt_id', 'SourceID', 'RowKey', 'AttributeID', 'BTSID', 'AttributeValue', 'RefSID',
                            'HashValue', 'InsertedBy', 'ModifiedBy', 'ValidFrom', 'ValidTo',
                            'IsCurrent', 'ResetDQStage', 'new_row', self.dnx_config.process_no_column_name]
-        self.bt_object_cols = ['bt_id', 'SourceID', 'RowKey', 'AttributeValue', 'RefSID', 'HashValue',
-                               'InsertedBy', 'ModifiedBy', 'ValidFrom', 'ValidTo', 'process_no']
 
+        # self.bt_partition_cols = ['SourceID']
+        self.bt_partition_cols =None
 
     def get_source_connection_credentials(self, source_id):
         be_data_sources_query = 'select query, org_connection_id from ' + self.dnx_config.be_data_sources_collection + ' where _id = ' + single_quotes(source_id)
@@ -51,9 +52,9 @@ class StartBT:
 
     def prepare_source_df(self, source_df, row_key_column_name, process_no_column_name, no_of_cores):
         new_source_df = source_df
-        new_source_df[row_key_column_name] = new_source_df[row_key_column_name].apply(sha1)
+        new_source_df[row_key_column_name] = new_source_df[row_key_column_name].swifter.apply(sha1)
         new_source_df['_id'] = new_source_df[row_key_column_name]
-        new_source_df[process_no_column_name] = new_source_df.apply(lambda x: assign_process_no(no_of_cores, x.name), axis=1)
+        new_source_df[process_no_column_name] = new_source_df.swifter.apply(lambda x: assign_process_no(no_of_cores, x.name), axis=1)
         return new_source_df
 
     def load_source_data(self, no_of_cores=1):
@@ -106,7 +107,7 @@ class StartBT:
         df_melt_result['SourceID'] = source_id
         df_melt_result['new_row'] = 1
         df_melt_result['RefSID'] = None
-        df_melt_result['HashValue'] = df_melt_result['AttributeValue'].apply(sha1)
+        df_melt_result['HashValue'] = df_melt_result['AttributeValue'].swifter.apply(sha1)
         df_melt_result['InsertedBy'] = 'ETL'
         df_melt_result['ModifiedBy'] = None
         df_melt_result['ValidFrom'] = datetime.datetime.now().isoformat()
@@ -122,7 +123,7 @@ class StartBT:
         query = "select query_column_name, be_att_id from " + data_sources_mapping + " where be_data_source_id = " + single_quotes(be_data_source_id)
         data_sources_mapping_data = get_all_data_from_source(self.dnx_config.config_db_url, None, query)
 
-        data_sources_mapping_data['ResetDQStage'] = data_sources_mapping_data.apply(lambda row: get_minimum_category(self.dnx_config.config_db_url,
+        data_sources_mapping_data['ResetDQStage'] = data_sources_mapping_data.swifter.apply(lambda row: get_minimum_category(self.dnx_config.config_db_url,
                                                                                                                      "",
                                                                                                                      self.dnx_config.be_attributes_data_rules_collection,
                                                                                                                      row['be_att_id']), axis=1)
@@ -147,11 +148,7 @@ class StartBT:
     def get_source_data(self, source_id, source_collection, process_no):
         att_query_df = self.get_att_ids_df(source_id)
         source_data_set = self.src_db_path + source_collection + '\\'+ self.dnx_config.process_no_column_name+'='+process_no
-        # print('source_data_set:', source_data_set)
-        # process_no_filter = [self.dnx_config.process_no_column_name, [process_no]]
-        table_batches = [table for table in pq.read_table(source_data_set, columns=None, nthreads=4).to_batches(int(self.parameters_dict['temp_source_batch_size']))]
-        print('getsizeof source_data_set', sys.getsizeof(table_batches))
-        for chunk_data in read_from_parquet(table_batches, be_ids_filter = None):
+        for chunk_data in read_batches_from_parquet(source_data_set, None, int(self.parameters_dict['temp_source_batch_size']), self.cpu_num_workers):
             melt_chunk_data = self.melt_query_result(chunk_data, source_id)
             attach_attribute_id_result = self.attach_attribute_id(att_query_df, melt_chunk_data)
             source_data_df, bt_ids = attach_attribute_id_result[0], attach_attribute_id_result[1]
@@ -263,7 +260,7 @@ class StartBT:
 
 
         same_df = get_delta_result[5]
-        save_to_parquet(same_df, bt_current_data_set, None, self.bt_object_cols)
+        save_to_parquet(same_df, bt_current_data_set, self.bt_partition_cols, bt_object_cols)
 
         if get_delta_result[3] in (0,2): #etl_occurred
             assert len(get_delta_result[0]) == len(get_delta_result[1])
@@ -272,8 +269,8 @@ class StartBT:
             expired_df = get_delta_result[1]
             expired_ids = get_delta_result[4]
 
-            save_to_parquet(modified_df, bt_current_data_set, None, self.bt_object_cols)
-            save_to_parquet(expired_df, bt_data_set, None, self.bt_object_cols)
+            save_to_parquet(modified_df, bt_current_data_set, self.bt_partition_cols, bt_object_cols)
+            save_to_parquet(expired_df, bt_data_set, self.bt_partition_cols, bt_object_cols)
             # print('expired_ids:', expired_ids)
             # manipulate = self.manipulate_etl_data(bt_collection, expired_df, expired_ids, bt_current_collection)  # expired data
             # self.parallel_data_manipulation.append(manipulate)
@@ -283,7 +280,7 @@ class StartBT:
 
         if get_delta_result[3] in (1, 2):  # etl_occurred
             new_data_df = get_delta_result[2]
-            save_to_parquet(new_data_df, bt_current_data_set, None, self.bt_object_cols)
+            save_to_parquet(new_data_df, bt_current_data_set, self.bt_partition_cols, bt_object_cols)
             # manipulate = self.manipulate_etl_data(bt_current_collection, new_data_df)  # new data
             # self.parallel_data_manipulation.append(manipulate)
 
@@ -312,7 +309,7 @@ class StartBT:
                 # bt_current_data_df = self.get_current_data(table_batches, bt_ids)
                 self.load_data(source_data_df, bt_current_data_df, bt_data_set, bt_current_data_set)
             else:
-                save_to_parquet(source_data_df, bt_current_data_set, [self.dnx_config.process_no_column_name], self.bt_object_cols)
+                save_to_parquet(source_data_df, bt_current_data_set, self.bt_partition_cols, bt_object_cols)
 
     def get_be_ids(self):
         be_att_ids_query = "select distinct be_att_id from " + self.dnx_config.be_attributes_data_rules_lvls_collection + " where active = 1"
@@ -339,6 +336,7 @@ class StartBT:
         start_time = datetime.datetime.now()
         be_ids = self.get_be_ids()
         self.process_no = process_no
+        self.cpu_num_workers = cpu_num_workers
 
         for i, be_id in be_ids.iterrows():
             be_id = be_id['be_id']

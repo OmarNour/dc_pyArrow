@@ -1,9 +1,9 @@
 import data_cleansing.CONFIG.Config as DNXConfig
 import pandas as pd
-from data_cleansing.dc_methods.dc_methods import get_all_data_from_source, get_be_core_table_names, data_to_list, list_to_string,\
-    count_folders_in_dir, read_batches_from_parquet, save_to_parquet, delete_dataset, rename_dataset
+from data_cleansing.dc_methods.dc_methods import get_all_data_from_source, get_be_core_table_names, \
+    count_folders_in_dir, read_batches_from_parquet, save_to_parquet, delete_dataset, rename_dataset, single_quotes, bt_object_cols
 import data_cleansing.DQ.data_rules.rules as dr
-
+import swifter
 
 class StartDQ:
     def __init__(self):
@@ -24,51 +24,83 @@ class StartDQ:
             return 'A' * len(str(att_value))
 
     def validate_data_rule(self, bt_current_data_df, be_att_dr_id, data_rule_id):
+        print('validate_data_rule started')
         result_df = pd.DataFrame()
         if not bt_current_data_df.empty:
             result_df = bt_current_data_df
             result_df['be_att_dr_id'] = be_att_dr_id
             result_df['data_rule_id'] = data_rule_id
-            result_df['is_issue'] = result_df.apply(lambda x: dr.rules_orchestrate(x['AttributeValue'], data_rule_id), axis=1)
-            result_df['data_value_pattern'] = result_df['AttributeValue'].apply(self.get_data_value_pattern)
+            result_df['is_issue'] = result_df.swifter.apply(lambda x: dr.rules_orchestrate(x['AttributeValue'], data_rule_id), axis=1)
+            result_df['data_value_pattern'] = result_df['AttributeValue'].swifter.apply(self.get_data_value_pattern)
         return result_df
 
-    def get_categories(self):
-        categories_query = "select distinct category_no from " + \
-                           self.dnx_config.be_attributes_data_rules_collection +\
-                           " where active = 1 order by category_no"
-        categories = get_all_data_from_source(self.dnx_config.config_db_url, None, categories_query)
+    def get_source_categories(self):
+        source_categories_query = "select distinct t1.be_data_source_id source_id, t1.category_no from " + \
+                           self.dnx_config.be_attributes_data_rules_collection +" t1 "+\
+                           " join " +self.dnx_config.be_data_sources_collection+ " t2 on t2._id = t1.be_data_source_id and t2.active = 1" \
+                           " where t1.active = 1 order by t1.be_data_source_id, t1.category_no"
+        # print(source_categories_query)
+        source_categories = get_all_data_from_source(self.dnx_config.config_db_url, None, source_categories_query)
 
-        return categories
+        return source_categories
 
-    def get_category_rules(self, category_no):
-        data_rules_query = "select _id, be_att_id, be_data_source_id from " + \
-                           self.dnx_config.be_attributes_data_rules_collection +\
-                           " where active = 1 and category_no = "+str(category_no)+""
+    def get_be_att_ids(self, source_id, category_no):
+        be_att_ids_query = "select distinct t1.be_att_id from " + \
+                           self.dnx_config.be_attributes_data_rules_collection + " t1 " + \
+                           " join " + self.dnx_config.be_data_sources_collection + " t2 on t2._id = t1.be_data_source_id and t2.active = 1" \
+                                                                                   " where t1.active = 1" \
+                                                                                   " and t1.category_no = " + str(category_no) + " and t1.be_data_source_id = " + single_quotes(str(source_id)) + \
+                           " order by t1.be_att_id"
+        be_att_ids = get_all_data_from_source(self.dnx_config.config_db_url, None, be_att_ids_query)
+
+        return be_att_ids
+
+    def get_source_category_rules(self, source_id, category_no):
+        data_rules_query = "select t1._id, t1.be_att_id, t1.be_data_source_id from " + \
+                           self.dnx_config.be_attributes_data_rules_collection + " t1 " + \
+                           " join " + self.dnx_config.be_data_sources_collection + " t2 on t2._id = t1.be_data_source_id and t2.active = 1" \
+                                                                                   " where t1.active = 1" \
+                           " and t1.category_no = "+str(category_no)+" and t1.be_data_source_id = " + single_quotes(str(source_id)) + \
+                           " order by t1.be_data_source_id"
         data_rules = get_all_data_from_source(self.dnx_config.config_db_url, None, data_rules_query)
 
         return data_rules
 
     def get_tmp_rowkeys(self, result_data_set_tmp):
-        for df in read_batches_from_parquet(result_data_set_tmp, None, int(self.parameters_dict['bt_batch_size'])):
+        print('result_data_set_tmp', result_data_set_tmp)
+        for df in read_batches_from_parquet(result_data_set_tmp, None, int(self.parameters_dict['bt_batch_size']), self.cpu_num_workers):
             yield df['RowKey']
 
     def get_bt_current_data(self, bt_dataset, columns, filter):
         # total_rows = 0
         folders_count = count_folders_in_dir(bt_dataset)
+        print('folders_count2', folders_count)
         for f in range(folders_count):
             # complete_dataset = bt_dataset + "\\" + str(f) + '\\' + self.dnx_config.process_no_column_name + '=' + self.process_no
-            complete_dataset = bt_dataset + "\\" + str(f) + '\\'
-            for df in read_batches_from_parquet(complete_dataset, columns, int(self.parameters_dict['bt_batch_size'])):
-                df = df[(df['SourceID'] == filter['SourceID']) & (df['ResetDQStage'] == filter['ResetDQStage']) & (df['AttributeID'] == filter['AttributeID'])]
+            complete_dataset = bt_dataset + "\\" + str(f)
+            # complete_dataset = complete_dataset + "\\" + 'SourceID=' + filter['SourceID'] + "\\" + 'ResetDQStage=' + str(filter['ResetDQStage'])
+            # print('complete_dataset', complete_dataset)
+            for df in read_batches_from_parquet(complete_dataset, columns, int(self.parameters_dict['bt_batch_size']), self.cpu_num_workers):
+                # print('dfdfdfdfdf', df)
+                # print('df.columns', df.columns)
+                df = df[
+                    (df['SourceID'] == filter['SourceID'])
+                    & (df['ResetDQStage'] == filter['ResetDQStage']) &
+                     (df['AttributeID'] == filter['AttributeID'])
+                    ]
+
+                # df['ResetDQStage'] = filter['ResetDQStage']
+                # df['SourceID'] = filter['SourceID']
+
                 yield df
 
     def insert_result_df(self, result_df, g_result, result_data_set, next_pass, next_fail, result_data_set_tmp):
-
+        print('insert_result_df started')
         if not result_df.empty:
             if g_result == 1:
                 # print('result_data_set.columns', result_df.columns)
-                save_to_parquet(result_df, result_data_set, partition_cols=['ResetDQStage', 'SourceID', 'be_att_dr_id', 'AttributeID', 'data_rule_id'])
+                partition_cols=['SourceID', 'ResetDQStage', 'AttributeID', 'be_att_dr_id', 'data_rule_id']
+                save_to_parquet(result_df, result_data_set, partition_cols=partition_cols)
             else:
                 if next_pass == 1:
                     next_df = result_df[result_df['is_issue'] == 0][['RowKey']]
@@ -80,9 +112,9 @@ class StartDQ:
                     # next_df = next_df.rename(index=str, columns={"RowKey": "_id"})
                     save_to_parquet(next_df, result_data_set_tmp)
 
-    def switch_result_dataset_tmp(self, result_data_set_tmp):
-        current_dataset = result_data_set_tmp
-        current_dataset_old = current_dataset + "_old"
+    def switch_dataset(self, dataset, suffix):
+        current_dataset = dataset
+        current_dataset_old = current_dataset + suffix
         delete_dataset(current_dataset_old)
         rename_dataset(current_dataset, current_dataset_old)
         return current_dataset_old
@@ -90,12 +122,15 @@ class StartDQ:
     def execute_lvl_data_rules(self, base_bt_current_data_set, result_data_set, result_data_set_tmp, source_id, be_att_dr_id, category_no,
                                be_att_id, rule_id, g_result, current_lvl_no, next_pass, next_fail):
 
+        print('execute_lvl_data_rules started')
         columns = ['SourceID', 'RowKey', 'AttributeID', 'AttributeValue', 'ResetDQStage']
         filter = {'SourceID': source_id,
                   'ResetDQStage': category_no,
                   'AttributeID': be_att_id}
 
-        result_data_set_tmp_old = self.switch_result_dataset_tmp(result_data_set_tmp)
+        suffix = "_old"
+        result_data_set_tmp_old = self.switch_dataset(result_data_set_tmp, suffix)
+
         for bt_current_data_df in self.get_bt_current_data(base_bt_current_data_set, columns, filter):
 
             if current_lvl_no > 1:
@@ -112,6 +147,7 @@ class StartDQ:
             self.insert_result_df(result_df, g_result, result_data_set, next_pass, next_fail, result_data_set_tmp)
 
     def execute_data_rules(self, data_rule, category_no):
+        print('execute_data_rules started')
         be_att_dr_id = data_rule['_id']
         source_id = data_rule['be_data_source_id']
         be_data_rule_lvls_query = "select be_att_id, rule_id, next_pass, next_fail from " + \
@@ -128,9 +164,7 @@ class StartDQ:
             next_fail = data_rule_lvls['next_fail']
             g_result = 1 if no_of_lvls == current_lvl_no else 0
 
-            be_id_query = "select be_id from "+ self.dnx_config.be_attributes_collection +\
-                          " where _id = " + str(be_att_id)
-            be_id = get_all_data_from_source(self.dnx_config.config_db_url, None, be_id_query)['be_id'].values[0]
+            be_id = self.get_be_id_by_be_att_id(str(be_att_id))
             core_tables = get_be_core_table_names(self.dnx_config.config_db_url, self.dnx_config.org_business_entities_collection, be_id)
             bt_current_collection = core_tables[0]
             dq_result_collection = core_tables[3]
@@ -142,18 +176,77 @@ class StartDQ:
             self.execute_lvl_data_rules(base_bt_current_data_set, result_data_set, result_data_set_tmp, source_id, be_att_dr_id, category_no,
                                         be_att_id, rule_id, g_result, current_lvl_no, next_pass, next_fail)
 
+    def get_next_be_att_id_category(self, source_id, be_att_id, current_category):
+        next_category_query = "select min(category_no) next_category_no" \
+                              " from " + self.dnx_config.be_attributes_data_rules_collection + \
+                              " where be_att_id = " + str(be_att_id) + \
+                              " and be_data_source_id =  " + single_quotes(str(source_id)) + \
+                              " and category_no > " + str(current_category)
+        # print('next_category_query', next_category_query)
+        next_category = get_all_data_from_source(self.dnx_config.config_db_url, None, next_category_query)['next_category_no'].values[0]
+
+        if next_category is None:
+            next_category = current_category + 1
+
+        return next_category
+
+    def get_passed_rowkeys(self, dq_result_dataset, be_att_dr_id):
+        None
+
+    def get_be_id_by_be_att_id(self, be_att_id):
+        be_id_query = "select be_id from " + self.dnx_config.be_attributes_collection + \
+                      " where _id = " + str(be_att_id)
+        be_id = get_all_data_from_source(self.dnx_config.config_db_url, None, be_id_query)['be_id'].values[0]
+
+        return be_id
+
+    def check_attribute_for_upgrade(self, source_id, be_att_id, current_category, next_cat):
+        return next_cat
+
+    def upgrade_category(self, source_id, category_no):
+        print('upgrade_category started')
+        # next_category = self.get_next_be_att_id_category(source_id, 700, category_no)
+        # print('next_category', next_category)
+        be_att_ids = self.get_be_att_ids(source_id, category_no)
+        for i, be_att_id in be_att_ids.iterrows():
+            be_att_id = be_att_id['be_att_id']
+            be_id = self.get_be_id_by_be_att_id(be_att_id)
+            core_tables = get_be_core_table_names(self.dnx_config.config_db_url, self.dnx_config.org_business_entities_collection, be_id)
+            bt_current_dataset = self.dnx_db_path + core_tables[0]
+            dq_result_collection = core_tables[3]
+
+            folders_count = count_folders_in_dir(bt_current_dataset)
+            # print('folders_count', folders_count)
+            next_cat = self.get_next_be_att_id_category(source_id, be_att_id, category_no)
+            for f in range(folders_count):
+                complete_bt_current_dataset = bt_current_dataset + "\\" + str(f)
+                suffix = "_old"
+                bt_dataset_old = self.switch_dataset(complete_bt_current_dataset, suffix)
+                for bt_current in read_batches_from_parquet(bt_dataset_old, None, int(self.parameters_dict['bt_batch_size']), self.cpu_num_workers):
+                    bt_current['ResetDQStage'] = bt_current.swifter.apply(lambda x: self.check_attribute_for_upgrade(x['SourceID'], x['AttributeID'], x['ResetDQStage'], next_cat), axis=1)
+                    save_to_parquet(bt_current, complete_bt_current_dataset, partition_cols=None, string_columns=bt_object_cols)
+
+                delete_dataset(bt_dataset_old)
+
+
     def start_dq(self, process_no, cpu_num_workers):
         pd.set_option('mode.chained_assignment', None)
         self.dnx_config = DNXConfig.Config()
         self.parameters_dict = self.dnx_config.get_parameters_values()
         self.cpu_num_workers = cpu_num_workers
         self.process_no = process_no
-        delete_dataset(self.result_db_path)
-        categories = self.get_categories()
-        for i, category_no in categories.iterrows():
-            category_no = category_no['category_no']
-            category_rules = self.get_category_rules(category_no)
 
-            for j, data_rule in category_rules.iterrows():
+        delete_dataset(self.result_db_path)
+        source_categories = self.get_source_categories()
+
+        for i, source_id_category_no in source_categories.iterrows():
+            source_id = source_id_category_no['source_id']
+            category_no = source_id_category_no['category_no']
+
+            source_category_rules = self.get_source_category_rules(source_id, category_no)
+
+            for j, data_rule in source_category_rules.iterrows():
                 # open multi processes here
                 self.execute_data_rules(data_rule, category_no)
+
+            self.upgrade_category(source_id, category_no)
