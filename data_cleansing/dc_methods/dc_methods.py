@@ -12,6 +12,16 @@ import os, sys
 bt_object_cols = ['bt_id', 'SourceID', 'RowKey', 'AttributeValue', 'RefSID', 'HashValue',
                                'InsertedBy', 'ModifiedBy', 'ValidFrom', 'ValidTo', 'process_no']
 
+
+def get_files_in_dir(path):
+    files = [name for name in os.listdir(path) if os.path.isfile(os.path.join(path, name))]
+    return files
+
+
+def count_files_in_dir(path):
+    files = get_files_in_dir(path)
+    return len(files)
+
 def count_folders_in_dir(path):
     return len(os.listdir(path))
 
@@ -61,6 +71,12 @@ def read_batches_from_parquet(dataset_root_path, columns, batch_size, nthreads):
         df = table.to_pandas()
         yield df
 
+def read_all_from_parquet(dataset_root_path, columns, nthreads):
+    df = pq.read_table(dataset_root_path,
+                       columns=columns,
+                       use_threads=nthreads).to_pandas()
+    return df
+
 
 def read_from_parquet(table_batches, be_ids_filter=None):
 
@@ -80,6 +96,9 @@ def read_from_parquet(table_batches, be_ids_filter=None):
             if be_ids_filter:
                 df = df[df[be_ids_filter[0]].isin(be_ids_filter[1])]
             yield df
+
+def drill_source_single_quotes(source):
+    return "`%s`" % source
 
 def single_quotes(string):
     return "'%s'" % string
@@ -213,18 +232,19 @@ def list_to_string(list, separator = None, quotes = 0):
     return to_string
 
 
-def read_from_parquet_drill(db_root_path, schema, table, columns_list, be_ids_filter=None, drill=None):
-    # drill = PyDrill(host='localhost', port=8047)
+def read_from_parquet_drill(db_root_path, schema, table, columns_list, be_ids_filter=None, drill=None, source=None, where='', full_query=None):
+    if drill is None:
+        drill = PyDrill(host='localhost', port=8047)
+    if full_query is None:
+        select = 'SELECT '
+        columns = list_to_string(list=columns_list, separator=',', quotes=0)
+        if source is None:
+            source = '''`''' + db_root_path + '/' + schema + '/' + table + '''`'''
+        from_source = ' from dfs.' + source
+        if be_ids_filter:
+            where = ' where bt_id in (' + list_to_string(list=be_ids_filter, separator=',', quotes=1) + ')'
 
-    select = 'SELECT '
-    columns = list_to_string(list=columns_list, separator=',', quotes=0)
-    source = '''`''' + db_root_path + '/' + schema + '/' + table + '''`'''
-    from_source = ' from dfs.' + source
-    if be_ids_filter:
-        where = ' where bt_id in (' + list_to_string(list=be_ids_filter, separator=',', quotes=1) + ')'
-    else:
-        where = ''
-    full_query = select + columns + from_source + where
+        full_query = select + columns + from_source + where
     # print('full_query', full_query)
     try:
 
@@ -244,35 +264,40 @@ def get_be_core_table_names(config_db, org_business_entities, be_id):
     dq_result_collection = list_to_string(get_all_data_from_source(config_db, None, org_business_entities_collection_query)['dq_result_collection'].values)
     return bt_current_collection, bt_collection, source_collection, dq_result_collection
 
-
+#
 if __name__ == '__main__':
-    dataset = 'C:\dc\parquet_db\DNX\BT_current_4383_10\\'
-    col = ['SourceID', 'RowKey', 'AttributeID', 'AttributeValue', 'ResetDQStage']
-    # dataset = 'C:\dc\parquet_db\Source_data\src_4383_10'
-    # col = None
-    total_rows = 0
-    folders_count = count_folders_in_dir(dataset)
-    for f in range(folders_count):
-        complete_dataset = dataset + str(f)
-        print(complete_dataset)
-        for i in read_batches_from_parquet(complete_dataset, col, 200000, 4):
-            print(type(i))
-            print(i.columns)
-            print(i[['AttributeID', 'ResetDQStage']])
-            # i['ResetDQStage'] = 2
-            # print(i['ResetDQStage'])
-            # xx = i.reset_index()
-            # x = xx[xx['ResetDQStage']==1]
-            total_rows += len(i.index)
-    print('total rows:', total_rows)
-
-#     import data_cleansing.CONFIG.Config as config
-#     config_db_url = config.Config.config_db_url
-
-#     x = get_parameter_values(config_db_url)
+    print(drill_source_single_quotes('/x/s/x/s'))
+#     # dataset = 'C:\dc\parquet_db\DNX\BT_current_4383_10\\'
+#     # col = ['SourceID', 'RowKey', 'AttributeID', 'AttributeValue', 'ResetDQStage']
+#     dataset = 'C:\dc\parquet_db\Result\Result_4383_10\SourceID=100_10_2\ResetDQStage=1\AttributeID=700\\'
+#     print('number of files is', count_files_in_dir("C:\dc\parquet_db\Result\Result_4383_10\SourceID=100_10_2\ResetDQStage=1\AttributeID=700\\be_att_dr_id=222\data_rule_id=2"))
+#     col = None
+#     total_rows = 0
+#     folders_count = count_folders_in_dir(dataset)
+#     for f in range(folders_count):
+#         complete_dataset = dataset
+#         # complete_dataset = complete_dataset + str(f)
+#         # print(complete_dataset)
+#         for i in read_batches_from_parquet(complete_dataset, col, 200000, 4):
+#             # print(type(i))
+#             print(i.columns)
+#             # print(i[['AttributeID', 'ResetDQStage']])
+#             # print(i['be_att_dr_id'])
+#             # i['be_att_dr_id'] = 2
+#             # print(i['be_att_dr_id'])
+#             # print(i['ResetDQStage'])
+#             # xx = i.reset_index()
+#             # x = xx[xx['ResetDQStage']==1]
+#             total_rows += len(i.index)
+#     print('total rows:', total_rows)
 #
-#     x_dict = x.to_dict('records')
+# #     import data_cleansing.CONFIG.Config as config
+# #     config_db_url = config.Config.config_db_url
 #
-#     parameters_values_dict = {}
-#     for i in x_dict:
-#         parameters_values_dict[i['_id']] = i['value']
+# #     x = get_parameter_values(config_db_url)
+# #
+# #     x_dict = x.to_dict('records')
+# #
+# #     parameters_values_dict = {}
+# #     for i in x_dict:
+# #         parameters_values_dict[i['_id']] = i['value']

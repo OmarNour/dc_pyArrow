@@ -22,6 +22,7 @@ def rule1(att_value):
 def rule2(att_value):
     try:
         float_att_value = float(att_value)
+        # print(float_att_value)
         return 0
     except:
         return 1

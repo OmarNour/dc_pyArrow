@@ -1,9 +1,11 @@
 import data_cleansing.CONFIG.Config as DNXConfig
 import pandas as pd
-from data_cleansing.dc_methods.dc_methods import get_all_data_from_source, get_be_core_table_names, \
-    count_folders_in_dir, read_batches_from_parquet, save_to_parquet, delete_dataset, rename_dataset, single_quotes, bt_object_cols
+from data_cleansing.dc_methods.dc_methods import get_all_data_from_source, get_be_core_table_names, read_from_parquet_drill, \
+    count_files_in_dir, get_files_in_dir, count_folders_in_dir, read_batches_from_parquet, save_to_parquet, delete_dataset, rename_dataset, single_quotes, bt_object_cols, \
+    read_all_from_parquet
 import data_cleansing.DQ.data_rules.rules as dr
 import swifter
+from pydrill.client import PyDrill
 
 class StartDQ:
     def __init__(self):
@@ -74,7 +76,7 @@ class StartDQ:
     def get_bt_current_data(self, bt_dataset, columns, filter):
         # total_rows = 0
         folders_count = count_folders_in_dir(bt_dataset)
-        print('folders_count2', folders_count)
+        # print('folders_count2', folders_count)
         for f in range(folders_count):
             # complete_dataset = bt_dataset + "\\" + str(f) + '\\' + self.dnx_config.process_no_column_name + '=' + self.process_no
             complete_dataset = bt_dataset + "\\" + str(f)
@@ -99,8 +101,9 @@ class StartDQ:
         if not result_df.empty:
             if g_result == 1:
                 # print('result_data_set.columns', result_df.columns)
-                partition_cols=['SourceID', 'ResetDQStage', 'AttributeID', 'be_att_dr_id', 'data_rule_id']
-                save_to_parquet(result_df, result_data_set, partition_cols=partition_cols)
+                partition_cols = ['SourceID', 'ResetDQStage', 'AttributeID', 'be_att_dr_id', 'data_rule_id']
+                string_cols = ['SourceID', 'RowKey', 'data_value_pattern']
+                save_to_parquet(result_df, result_data_set, partition_cols=partition_cols, string_columns=string_cols)
             else:
                 if next_pass == 1:
                     next_df = result_df[result_df['is_issue'] == 0][['RowKey']]
@@ -190,9 +193,6 @@ class StartDQ:
 
         return next_category
 
-    def get_passed_rowkeys(self, dq_result_dataset, be_att_dr_id):
-        None
-
     def get_be_id_by_be_att_id(self, be_att_id):
         be_id_query = "select be_id from " + self.dnx_config.be_attributes_collection + \
                       " where _id = " + str(be_att_id)
@@ -200,31 +200,70 @@ class StartDQ:
 
         return be_id
 
-    def check_attribute_for_upgrade(self, source_id, be_att_id, current_category, next_cat):
-        return next_cat
+    def is_cell_passed(self, RowKey):
+        return False if RowKey in self.rowkeys.index else True
+
+    def check_cells_for_upgrade(self, r_SourceID, r_RowKey, r_AttributeID, r_ResetDQStage, next_cat, p_source_id, p_be_att_id):
+        return_next_cat = r_ResetDQStage
+
+        if r_AttributeID == p_be_att_id and r_SourceID == p_source_id:
+            if self.is_cell_passed(r_RowKey):
+                return_next_cat = next_cat
+
+        # print(r_RowKey, r_AttributeID, 'return_next_cat', return_next_cat)
+        return return_next_cat
 
     def upgrade_category(self, source_id, category_no):
         print('upgrade_category started')
         # next_category = self.get_next_be_att_id_category(source_id, 700, category_no)
         # print('next_category', next_category)
         be_att_ids = self.get_be_att_ids(source_id, category_no)
+        # print('be_att_ids', be_att_ids)
         for i, be_att_id in be_att_ids.iterrows():
             be_att_id = be_att_id['be_att_id']
             be_id = self.get_be_id_by_be_att_id(be_att_id)
             core_tables = get_be_core_table_names(self.dnx_config.config_db_url, self.dnx_config.org_business_entities_collection, be_id)
             bt_current_dataset = self.dnx_db_path + core_tables[0]
-            dq_result_collection = core_tables[3]
+            dq_result_dataset = self.result_db_path + core_tables[3]
+            partioned_dq_result_dataset = dq_result_dataset+"\\"+ "SourceID="+str(source_id)+"\\ResetDQStage="+str(category_no)+"\\AttributeID="+str(be_att_id)
+            # print('partioned_dq_result_dataset', partioned_dq_result_dataset)
 
             folders_count = count_folders_in_dir(bt_current_dataset)
             # print('folders_count', folders_count)
             next_cat = self.get_next_be_att_id_category(source_id, be_att_id, category_no)
+            rowkeys = None
+            self.rowkeys = read_all_from_parquet(dq_result_dataset, ['RowKey', 'is_issue'], self.cpu_num_workers)
+            self.rowkeys = self.rowkeys[self.rowkeys['is_issue'] == 1].set_index('RowKey')
+            # self.rowkeys = self.rowkeys.set_index('RowKey')
+            # print('folders_count', folders_count)
             for f in range(folders_count):
+
                 complete_bt_current_dataset = bt_current_dataset + "\\" + str(f)
                 suffix = "_old"
                 bt_dataset_old = self.switch_dataset(complete_bt_current_dataset, suffix)
+                # print('bt_dataset_old', bt_dataset_old)
                 for bt_current in read_batches_from_parquet(bt_dataset_old, None, int(self.parameters_dict['bt_batch_size']), self.cpu_num_workers):
-                    bt_current['ResetDQStage'] = bt_current.swifter.apply(lambda x: self.check_attribute_for_upgrade(x['SourceID'], x['AttributeID'], x['ResetDQStage'], next_cat), axis=1)
-                    save_to_parquet(bt_current, complete_bt_current_dataset, partition_cols=None, string_columns=bt_object_cols)
+                    # print('bt_currentbt_current', bt_current[['RowKey', 'AttributeID']])
+                    print('self.rowkeys', len(self.rowkeys.index))
+                    bt_current1 = bt_current[(bt_current['SourceID']==source_id) &
+                                             (bt_current['ResetDQStage'] == category_no) &
+                                             (bt_current['AttributeID'] == be_att_id) ]
+
+                    bt_current2 = bt_current[(bt_current['SourceID'] == source_id) &
+                                             (bt_current['ResetDQStage'] == category_no) &
+                                             (bt_current['AttributeID'] != be_att_id)]
+
+                    print('bt_current1', len(bt_current1.index))
+                    print('bt_current2', len(bt_current2.index))
+                    bt_current1['ResetDQStage'] = bt_current1.apply(lambda x: self.check_cells_for_upgrade(x['SourceID'],
+                                                                                                           x['RowKey'],
+                                                                                                           x['AttributeID'],
+                                                                                                           x['ResetDQStage'],
+                                                                                                           next_cat,
+                                                                                                           source_id,
+                                                                                                           be_att_id), axis=1)
+                    save_to_parquet(bt_current1, complete_bt_current_dataset, partition_cols=None, string_columns=bt_object_cols)
+                    save_to_parquet(bt_current2, complete_bt_current_dataset, partition_cols=None, string_columns=bt_object_cols)
 
                 delete_dataset(bt_dataset_old)
 
@@ -235,6 +274,8 @@ class StartDQ:
         self.parameters_dict = self.dnx_config.get_parameters_values()
         self.cpu_num_workers = cpu_num_workers
         self.process_no = process_no
+        self.rowkeys = pd.DataFrame()
+
 
         delete_dataset(self.result_db_path)
         source_categories = self.get_source_categories()
