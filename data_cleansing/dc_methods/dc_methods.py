@@ -43,6 +43,11 @@ def delete_dataset(data_set):
         None
 
 
+def xstr(s):
+    if s is None:
+        return ''
+    return str(s)
+
 def save_to_parquet(df, dataset_root_path, partition_cols=None, string_columns=None):
     start_time = datetime.datetime.now()
     if not df.empty:
@@ -54,7 +59,7 @@ def save_to_parquet(df, dataset_root_path, partition_cols=None, string_columns=N
             string_columns = df.columns
 
         for i in string_columns:
-            df[i] = df[i].apply(str)
+            df[i] = df[i].apply(xstr)
 
         partial_results_table = pa.Table.from_pandas(df)
 
