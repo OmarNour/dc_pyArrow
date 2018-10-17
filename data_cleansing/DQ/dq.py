@@ -234,9 +234,10 @@ class StartDQ:
             folders_count = count_folders_in_dir(bt_current_dataset)
             # print('folders_count', folders_count)
             next_cat = self.get_next_be_att_id_category(source_id, be_att_id, category_no)
+            print('nextcat', source_id, be_att_id, category_no, next_cat)
             rowkeys = None
-            if is_dir_exists(dq_result_dataset):
-                self.rowkeys = read_all_from_parquet(dq_result_dataset, ['RowKey', 'is_issue'], self.cpu_num_workers)
+            if is_dir_exists(partioned_dq_result_dataset):
+                self.rowkeys = read_all_from_parquet(partioned_dq_result_dataset, ['RowKey', 'is_issue'], self.cpu_num_workers)
                 self.rowkeys = self.rowkeys[self.rowkeys['is_issue'] == 1].set_index('RowKey')
                 for f in range(folders_count):
 
@@ -246,18 +247,19 @@ class StartDQ:
                     # print('bt_dataset_old', bt_dataset_old)
                     for bt_current in read_batches_from_parquet(bt_dataset_old, None, int(self.parameters_dict['bt_batch_size']), self.cpu_num_workers):
                         # print('bt_currentbt_current', bt_current[['RowKey', 'AttributeID']])
-                        print('self.rowkeys', len(self.rowkeys.index))
-                        bt_current1 = bt_current[(bt_current['SourceID']==source_id) &
+                        # print('self.rowkeys', len(self.rowkeys.index))
+                        bt_current1 = bt_current[(bt_current['SourceID'] == source_id) &
                                                  (bt_current['ResetDQStage'] == category_no) &
-                                                 (bt_current['AttributeID'] == be_att_id) ]
+                                                 (bt_current['AttributeID'] == be_att_id)]
 
-                        bt_current2 = bt_current[(bt_current['SourceID'] == source_id) &
-                                                 (bt_current['ResetDQStage'] == category_no) &
-                                                 (bt_current['AttributeID'] != be_att_id)]
+                        bt_current2 = bt_current[~bt_current['bt_id'].isin(bt_current1['bt_id'])]
+                        # bt_current2 = bt_current[(bt_current['SourceID'] == source_id) &
+                        #                          (bt_current['ResetDQStage'] == category_no) &
+                        #                          (bt_current['AttributeID'] != be_att_id)]
 
                         print('bt_current1', len(bt_current1.index))
                         print('bt_current2', len(bt_current2.index))
-                        if len(bt_current1.index) > 0 :
+                        if len(bt_current1.index) > 0:
                             bt_current1['ResetDQStage'] = bt_current1.apply(lambda x: self.check_cells_for_upgrade(x['SourceID'],
                                                                                                                    x['RowKey'],
                                                                                                                    x['AttributeID'],
@@ -270,7 +272,6 @@ class StartDQ:
                         save_to_parquet(bt_current2, complete_bt_current_dataset, partition_cols=None, string_columns=bt_object_cols)
 
                     delete_dataset(bt_dataset_old)
-
 
     def start_dq(self, process_no, cpu_num_workers):
         pd.set_option('mode.chained_assignment', None)
