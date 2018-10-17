@@ -2,7 +2,7 @@ import data_cleansing.CONFIG.Config as DNXConfig
 import pandas as pd
 from data_cleansing.dc_methods.dc_methods import get_all_data_from_source, get_be_core_table_names, read_from_parquet_drill, \
     count_files_in_dir, get_files_in_dir, count_folders_in_dir, read_batches_from_parquet, save_to_parquet, delete_dataset, rename_dataset, single_quotes, bt_object_cols, \
-    read_all_from_parquet
+    read_all_from_parquet, is_dir_exists
 import data_cleansing.DQ.data_rules.rules as dr
 import swifter
 from pydrill.client import PyDrill
@@ -107,8 +107,10 @@ class StartDQ:
             else:
                 if next_pass == 1:
                     next_df = result_df[result_df['is_issue'] == 0][['RowKey']]
+                    print('next_pass', len(next_df.index))
                 elif next_fail == 1:
                     next_df = result_df[result_df['is_issue'] == 1][['RowKey']]
+                    print('next_pass', len(next_df.index))
                 else:
                     next_df = pd.DataFrame()
                 if not next_df.empty:
@@ -138,12 +140,13 @@ class StartDQ:
 
             if current_lvl_no > 1:
                 result_df = pd.DataFrame()
-                for row_keys_df in self.get_tmp_rowkeys(result_data_set_tmp_old): # filter with level number too!
-                    bt_nxt_lvl_current_data_df = bt_current_data_df[bt_current_data_df['RowKey'].isin(row_keys_df)]
+                if is_dir_exists(result_data_set_tmp_old):
+                    for row_keys_df in self.get_tmp_rowkeys(result_data_set_tmp_old): # filter with level number too!
+                        bt_nxt_lvl_current_data_df = bt_current_data_df[bt_current_data_df['RowKey'].isin(row_keys_df)]
 
-                    if not bt_nxt_lvl_current_data_df.empty:
-                        result_lvl_df = self.validate_data_rule(bt_nxt_lvl_current_data_df, be_att_dr_id, rule_id)
-                        result_df = result_df.append(result_lvl_df)
+                        if not bt_nxt_lvl_current_data_df.empty:
+                            result_lvl_df = self.validate_data_rule(bt_nxt_lvl_current_data_df, be_att_dr_id, rule_id)
+                            result_df = result_df.append(result_lvl_df)
 
             else:
                 result_df = self.validate_data_rule(bt_current_data_df, be_att_dr_id, rule_id)
@@ -232,40 +235,39 @@ class StartDQ:
             # print('folders_count', folders_count)
             next_cat = self.get_next_be_att_id_category(source_id, be_att_id, category_no)
             rowkeys = None
-            self.rowkeys = read_all_from_parquet(dq_result_dataset, ['RowKey', 'is_issue'], self.cpu_num_workers)
-            self.rowkeys = self.rowkeys[self.rowkeys['is_issue'] == 1].set_index('RowKey')
-            # self.rowkeys = self.rowkeys.set_index('RowKey')
-            # print('folders_count', folders_count)
-            for f in range(folders_count):
+            if is_dir_exists(dq_result_dataset):
+                self.rowkeys = read_all_from_parquet(dq_result_dataset, ['RowKey', 'is_issue'], self.cpu_num_workers)
+                self.rowkeys = self.rowkeys[self.rowkeys['is_issue'] == 1].set_index('RowKey')
+                for f in range(folders_count):
 
-                complete_bt_current_dataset = bt_current_dataset + "\\" + str(f)
-                suffix = "_old"
-                bt_dataset_old = self.switch_dataset(complete_bt_current_dataset, suffix)
-                # print('bt_dataset_old', bt_dataset_old)
-                for bt_current in read_batches_from_parquet(bt_dataset_old, None, int(self.parameters_dict['bt_batch_size']), self.cpu_num_workers):
-                    # print('bt_currentbt_current', bt_current[['RowKey', 'AttributeID']])
-                    print('self.rowkeys', len(self.rowkeys.index))
-                    bt_current1 = bt_current[(bt_current['SourceID']==source_id) &
-                                             (bt_current['ResetDQStage'] == category_no) &
-                                             (bt_current['AttributeID'] == be_att_id) ]
+                    complete_bt_current_dataset = bt_current_dataset + "\\" + str(f)
+                    suffix = "_old"
+                    bt_dataset_old = self.switch_dataset(complete_bt_current_dataset, suffix)
+                    # print('bt_dataset_old', bt_dataset_old)
+                    for bt_current in read_batches_from_parquet(bt_dataset_old, None, int(self.parameters_dict['bt_batch_size']), self.cpu_num_workers):
+                        # print('bt_currentbt_current', bt_current[['RowKey', 'AttributeID']])
+                        print('self.rowkeys', len(self.rowkeys.index))
+                        bt_current1 = bt_current[(bt_current['SourceID']==source_id) &
+                                                 (bt_current['ResetDQStage'] == category_no) &
+                                                 (bt_current['AttributeID'] == be_att_id) ]
 
-                    bt_current2 = bt_current[(bt_current['SourceID'] == source_id) &
-                                             (bt_current['ResetDQStage'] == category_no) &
-                                             (bt_current['AttributeID'] != be_att_id)]
+                        bt_current2 = bt_current[(bt_current['SourceID'] == source_id) &
+                                                 (bt_current['ResetDQStage'] == category_no) &
+                                                 (bt_current['AttributeID'] != be_att_id)]
 
-                    print('bt_current1', len(bt_current1.index))
-                    print('bt_current2', len(bt_current2.index))
-                    bt_current1['ResetDQStage'] = bt_current1.apply(lambda x: self.check_cells_for_upgrade(x['SourceID'],
-                                                                                                           x['RowKey'],
-                                                                                                           x['AttributeID'],
-                                                                                                           x['ResetDQStage'],
-                                                                                                           next_cat,
-                                                                                                           source_id,
-                                                                                                           be_att_id), axis=1)
-                    save_to_parquet(bt_current1, complete_bt_current_dataset, partition_cols=None, string_columns=bt_object_cols)
-                    save_to_parquet(bt_current2, complete_bt_current_dataset, partition_cols=None, string_columns=bt_object_cols)
+                        print('bt_current1', len(bt_current1.index))
+                        print('bt_current2', len(bt_current2.index))
+                        bt_current1['ResetDQStage'] = bt_current1.apply(lambda x: self.check_cells_for_upgrade(x['SourceID'],
+                                                                                                               x['RowKey'],
+                                                                                                               x['AttributeID'],
+                                                                                                               x['ResetDQStage'],
+                                                                                                               next_cat,
+                                                                                                               source_id,
+                                                                                                               be_att_id), axis=1)
+                        save_to_parquet(bt_current1, complete_bt_current_dataset, partition_cols=None, string_columns=bt_object_cols)
+                        save_to_parquet(bt_current2, complete_bt_current_dataset, partition_cols=None, string_columns=bt_object_cols)
 
-                delete_dataset(bt_dataset_old)
+                    delete_dataset(bt_dataset_old)
 
 
     def start_dq(self, process_no, cpu_num_workers):

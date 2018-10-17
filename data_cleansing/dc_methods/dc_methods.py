@@ -13,6 +13,9 @@ bt_object_cols = ['bt_id', 'SourceID', 'RowKey', 'AttributeValue', 'RefSID', 'Ha
                                'InsertedBy', 'ModifiedBy', 'ValidFrom', 'ValidTo', 'process_no']
 
 
+def is_dir_exists(path):
+    return os.path.exists(path)
+
 def get_files_in_dir(path):
     files = [name for name in os.listdir(path) if os.path.isfile(os.path.join(path, name))]
     return files
