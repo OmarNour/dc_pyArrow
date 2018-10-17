@@ -33,7 +33,8 @@ def rename_dataset(current_name, new_name):
         os.rename(current_name,
                   new_name)
     except:
-        print(current_name, "folder not found or unexpected error:", sys.exc_info()[0])
+        None
+        # print(current_name, "folder not found or unexpected error:", sys.exc_info()[0])
 
 
 def delete_dataset(data_set):
@@ -273,8 +274,8 @@ def get_be_core_table_names(config_db, org_business_entities, be_id):
     return bt_current_collection, bt_collection, source_collection, dq_result_collection
 
 #
-if __name__ == '__main__':
-    print(drill_source_single_quotes('/x/s/x/s'))
+# if __name__ == '__main__':
+#     print(drill_source_single_quotes('/x/s/x/s'))
 #     # dataset = 'C:\dc\parquet_db\DNX\BT_current_4383_10\\'
 #     # col = ['SourceID', 'RowKey', 'AttributeID', 'AttributeValue', 'ResetDQStage']
 #     dataset = 'C:\dc\parquet_db\Result\Result_4383_10\SourceID=100_10_2\ResetDQStage=1\AttributeID=700\\'

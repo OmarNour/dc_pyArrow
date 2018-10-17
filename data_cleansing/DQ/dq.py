@@ -107,10 +107,10 @@ class StartDQ:
             else:
                 if next_pass == 1:
                     next_df = result_df[result_df['is_issue'] == 0][['RowKey']]
-                    print('next_pass', len(next_df.index))
+                    # print('next_pass', len(next_df.index))
                 elif next_fail == 1:
                     next_df = result_df[result_df['is_issue'] == 1][['RowKey']]
-                    print('next_pass', len(next_df.index))
+                    # print('next_pass', len(next_df.index))
                 else:
                     next_df = pd.DataFrame()
                 if not next_df.empty:
@@ -217,7 +217,7 @@ class StartDQ:
         return return_next_cat
 
     def upgrade_category(self, source_id, category_no):
-        print('upgrade_category started')
+        # print('upgrade_category started')
         # next_category = self.get_next_be_att_id_category(source_id, 700, category_no)
         # print('next_category', next_category)
         be_att_ids = self.get_be_att_ids(source_id, category_no)
@@ -244,29 +244,23 @@ class StartDQ:
                     complete_bt_current_dataset = bt_current_dataset + "\\" + str(f)
                     suffix = "_old"
                     bt_dataset_old = self.switch_dataset(complete_bt_current_dataset, suffix)
-                    # print('bt_dataset_old', bt_dataset_old)
+
                     for bt_current in read_batches_from_parquet(bt_dataset_old, None, int(self.parameters_dict['bt_batch_size']), self.cpu_num_workers):
-                        # print('bt_currentbt_current', bt_current[['RowKey', 'AttributeID']])
-                        # print('self.rowkeys', len(self.rowkeys.index))
+
                         bt_current1 = bt_current[(bt_current['SourceID'] == source_id) &
                                                  (bt_current['ResetDQStage'] == category_no) &
                                                  (bt_current['AttributeID'] == be_att_id)]
 
                         bt_current2 = bt_current[~bt_current['bt_id'].isin(bt_current1['bt_id'])]
-                        # bt_current2 = bt_current[(bt_current['SourceID'] == source_id) &
-                        #                          (bt_current['ResetDQStage'] == category_no) &
-                        #                          (bt_current['AttributeID'] != be_att_id)]
 
-                        print('bt_current1', len(bt_current1.index))
-                        print('bt_current2', len(bt_current2.index))
                         if len(bt_current1.index) > 0:
-                            bt_current1['ResetDQStage'] = bt_current1.apply(lambda x: self.check_cells_for_upgrade(x['SourceID'],
-                                                                                                                   x['RowKey'],
-                                                                                                                   x['AttributeID'],
-                                                                                                                   x['ResetDQStage'],
-                                                                                                                   next_cat,
-                                                                                                                   source_id,
-                                                                                                                   be_att_id), axis=1)
+                            bt_current1['ResetDQStage'] = bt_current1.swifter.apply(lambda x: self.check_cells_for_upgrade(x['SourceID'],
+                                                                                                                           x['RowKey'],
+                                                                                                                           x['AttributeID'],
+                                                                                                                           x['ResetDQStage'],
+                                                                                                                           next_cat,
+                                                                                                                           source_id,
+                                                                                                                           be_att_id), axis=1)
 
                         save_to_parquet(bt_current1, complete_bt_current_dataset, partition_cols=None, string_columns=bt_object_cols)
                         save_to_parquet(bt_current2, complete_bt_current_dataset, partition_cols=None, string_columns=bt_object_cols)
