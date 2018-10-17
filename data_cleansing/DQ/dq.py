@@ -257,13 +257,15 @@ class StartDQ:
 
                         print('bt_current1', len(bt_current1.index))
                         print('bt_current2', len(bt_current2.index))
-                        bt_current1['ResetDQStage'] = bt_current1.apply(lambda x: self.check_cells_for_upgrade(x['SourceID'],
-                                                                                                               x['RowKey'],
-                                                                                                               x['AttributeID'],
-                                                                                                               x['ResetDQStage'],
-                                                                                                               next_cat,
-                                                                                                               source_id,
-                                                                                                               be_att_id), axis=1)
+                        if len(bt_current1.index) > 0 :
+                            bt_current1['ResetDQStage'] = bt_current1.apply(lambda x: self.check_cells_for_upgrade(x['SourceID'],
+                                                                                                                   x['RowKey'],
+                                                                                                                   x['AttributeID'],
+                                                                                                                   x['ResetDQStage'],
+                                                                                                                   next_cat,
+                                                                                                                   source_id,
+                                                                                                                   be_att_id), axis=1)
+
                         save_to_parquet(bt_current1, complete_bt_current_dataset, partition_cols=None, string_columns=bt_object_cols)
                         save_to_parquet(bt_current2, complete_bt_current_dataset, partition_cols=None, string_columns=bt_object_cols)
 

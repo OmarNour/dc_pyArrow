@@ -7,10 +7,11 @@ import itertools
 def rules_orchestrate(att_value,id):
     print('rules_orchestrate', att_value)
     if id == 1:
-
         return rule1(att_value)
     elif id == 2:
         return rule2(att_value)
+    elif id == 3:
+        return rule3(att_value)
 
 
 def rule1(att_value):
@@ -33,3 +34,11 @@ def rule2(att_value):
         return 0
     except:
         return 1
+
+
+def rule3(att_value):
+    print('rule3', att_value)
+    if len(att_value) <= 4:
+        return 1
+    else:
+        return 0
