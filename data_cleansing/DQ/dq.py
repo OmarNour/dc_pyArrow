@@ -131,7 +131,7 @@ class StartDQ:
     def execute_lvl_data_rules(self, base_bt_current_data_set, result_data_set, result_data_set_tmp, source_id, be_att_dr_id, category_no,
                                be_att_id, rule_id, g_result, current_lvl_no, next_pass, next_fail):
 
-        # print('execute_lvl_data_rules started')
+        print('execute_lvl_data_rules started')
         columns = ['SourceID', 'RowKey', 'AttributeID', 'AttributeValue', 'ResetDQStage']
         filter = {'SourceID': str(source_id),
                   'ResetDQStage': category_no,
@@ -235,13 +235,13 @@ class StartDQ:
                 dq_result_dataset = self.result_db_path + core_tables[3]
                 print('dq_result_dataset', dq_result_dataset)
                 partioned_dq_result_dataset = dq_result_dataset+"\\"+ "SourceID="+str(source_id)+"\\ResetDQStage="+str(category_no)+"\\AttributeID="+str(be_att_id)
-                # print('partioned_dq_result_dataset', partioned_dq_result_dataset)
 
                 folders_count = count_folders_in_dir(bt_current_dataset)
                 # print('folders_count', folders_count)
                 next_cat = self.get_next_be_att_id_category(source_id, be_att_id, category_no)
                 print('nextcat', source_id, be_att_id, category_no, next_cat)
                 rowkeys = None
+                # print('partioned_dq_result_dataset', partioned_dq_result_dataset)
                 if is_dir_exists(partioned_dq_result_dataset):
                     self.rowkeys = read_all_from_parquet(partioned_dq_result_dataset, ['RowKey', 'is_issue'], self.cpu_num_workers)
                     self.rowkeys = self.rowkeys[self.rowkeys['is_issue'] == 1].set_index('RowKey')
@@ -258,7 +258,7 @@ class StartDQ:
                                                      (bt_current['AttributeID'] == be_att_id)]
 
                             bt_current2 = bt_current[~bt_current['bt_id'].isin(bt_current1['bt_id'])]
-
+                            print('bt_current1.index', len(bt_current1.index), be_att_id)
                             if len(bt_current1.index) > 0:
                                 bt_current1['ResetDQStage'] = bt_current1.swifter.apply(lambda x: self.check_cells_for_upgrade(x['SourceID'],
                                                                                                                                x['RowKey'],
@@ -286,7 +286,7 @@ class StartDQ:
         source_categories = self.get_source_categories()
 
         for i, source_id_category_no in source_categories.iterrows():
-            source_id = source_id_category_no['source_id']
+            source_id = str(source_id_category_no['source_id'])
             category_no = source_id_category_no['category_no']
 
             source_category_rules = self.get_source_category_rules(source_id, category_no)

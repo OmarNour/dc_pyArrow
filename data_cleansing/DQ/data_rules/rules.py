@@ -12,6 +12,8 @@ def rules_orchestrate(att_value,id):
         return rule2(att_value)
     elif id == 3:
         return rule3(att_value)
+    elif id == 100:
+        return rule100(att_value)
 
 
 def rule1(att_value):
@@ -39,6 +41,13 @@ def rule2(att_value):
 def rule3(att_value):
     # print('rule3', att_value)
     if len(att_value) <= 4:
+        return 1
+    else:
+        return 0
+
+def rule100(att_value):
+    # print('rule3', att_value)
+    if len(att_value) > 4:
         return 1
     else:
         return 0
