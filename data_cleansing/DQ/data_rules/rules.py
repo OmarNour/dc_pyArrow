@@ -1,24 +1,22 @@
-import datetime
-import pandas as pd
-import hashlib
-import itertools
+import data_cleansing.dc_methods.dc_methods as dc_methods
 
 
-def rules_orchestrate(att_value,id):
+def rules_orchestrate(rule_id, att_value, kwargs):
     # print('rules_orchestrate', att_value)
-    if id == 1:
-        return rule1(att_value)
-    elif id == 2:
-        return rule2(att_value)
-    elif id == 3:
-        return rule3(att_value)
-    elif id == 100:
-        return rule100(att_value)
+    if kwargs:
+        kwargs = eval("dict(%s)" % ','.join(kwargs.split()))
+
+    if rule_id == 1:
+        return rule1(att_value, kwargs)
+    elif rule_id == 2:
+        return rule2(att_value, kwargs)
+    elif rule_id == 3:
+        return rule3(att_value, kwargs)
+    elif rule_id == 100:
+        return rule100(att_value, kwargs)
 
 
-def rule1(att_value):
-    # print('rule1', att_value, type(att_value), len(att_value))
-    # att_value = None
+def rule1(att_value, kwargs):
 
     if att_value == "":
         # print('att_value_is_none')
@@ -28,7 +26,7 @@ def rule1(att_value):
         return 0
 
 
-def rule2(att_value):
+def rule2(att_value,kwargs):
     # print('rule2', att_value)
     try:
         float_att_value = float(att_value)
@@ -38,15 +36,17 @@ def rule2(att_value):
         return 1
 
 
-def rule3(att_value):
+def rule3(att_value, kwargs):
     # print('rule3', att_value)
     if len(att_value) <= 4:
         return 1
     else:
         return 0
 
-def rule100(att_value):
-    # print('rule3', att_value)
+def rule100(att_value, kwargs):
+    # print('rule100', att_value)
+    # print('kwars_parameters', kwargs)
+    # print('first value in Kwargs', kwargs['Firstname'])
     if len(att_value) > 4:
         return 1
     else:

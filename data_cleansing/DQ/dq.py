@@ -25,14 +25,14 @@ class StartDQ:
         except:
             return 'A' * len(str(att_value))
 
-    def validate_data_rule(self, bt_current_data_df, be_att_dr_id, data_rule_id):
-        print('validate_data_rule started')
+    def validate_data_rule(self, bt_current_data_df, be_att_dr_id, data_rule_id, kwargs):
+        # print('validate_data_rule started', be_att_dr_id, data_rule_id, kwargs)
         result_df = pd.DataFrame()
         if not bt_current_data_df.empty:
             result_df = bt_current_data_df
             result_df['be_att_dr_id'] = be_att_dr_id
             result_df['data_rule_id'] = data_rule_id
-            result_df['is_issue'] = result_df.swifter.apply(lambda x: dr.rules_orchestrate(x['AttributeValue'], data_rule_id), axis=1)
+            result_df['is_issue'] = result_df.swifter.apply(lambda x: dr.rules_orchestrate(data_rule_id, x['AttributeValue'], kwargs), axis=1)
             result_df['data_value_pattern'] = result_df['AttributeValue'].swifter.apply(self.get_data_value_pattern)
         return result_df
 
@@ -129,11 +129,11 @@ class StartDQ:
         return current_dataset_old
 
     def execute_lvl_data_rules(self, base_bt_current_data_set, result_data_set, result_data_set_tmp, source_id, be_att_dr_id, category_no,
-                               be_att_id, rule_id, g_result, current_lvl_no, next_pass, next_fail):
+                               be_att_id, rule_id, g_result, current_lvl_no, next_pass, next_fail, kwargs):
 
         print('execute_lvl_data_rules started')
         columns = ['SourceID', 'RowKey', 'AttributeID', 'AttributeValue', 'ResetDQStage']
-        filter = {'SourceID': str(source_id),
+        filter = {'SourceID': source_id,
                   'ResetDQStage': category_no,
                   'AttributeID': be_att_id}
 
@@ -149,18 +149,18 @@ class StartDQ:
                         bt_nxt_lvl_current_data_df = bt_current_data_df[bt_current_data_df['RowKey'].isin(row_keys_df)]
 
                         if not bt_nxt_lvl_current_data_df.empty:
-                            result_lvl_df = self.validate_data_rule(bt_nxt_lvl_current_data_df, be_att_dr_id, rule_id)
+                            result_lvl_df = self.validate_data_rule(bt_nxt_lvl_current_data_df, be_att_dr_id, rule_id, kwargs)
                             result_df = result_df.append(result_lvl_df)
 
             else:
-                result_df = self.validate_data_rule(bt_current_data_df, be_att_dr_id, rule_id)
+                result_df = self.validate_data_rule(bt_current_data_df, be_att_dr_id, rule_id, kwargs)
             self.insert_result_df(result_df, g_result, result_data_set, next_pass, next_fail, result_data_set_tmp)
 
     def execute_data_rules(self, data_rule, category_no):
         print('execute_data_rules started')
         be_att_dr_id = data_rule['_id']
-        source_id = data_rule['be_data_source_id']
-        be_data_rule_lvls_query = "select be_att_id, rule_id, next_pass, next_fail from " + \
+        source_id = str(data_rule['be_data_source_id'])
+        be_data_rule_lvls_query = "select be_att_id, rule_id, next_pass, next_fail, kwargs from " + \
                                   self.dnx_config.be_attributes_data_rules_lvls_collection + \
                                   " where active = 1 and be_att_dr_id = " + str(be_att_dr_id) + " order by level_no"
         be_data_rule_lvls = get_all_data_from_source(self.dnx_config.config_db_url, None, be_data_rule_lvls_query)
@@ -172,6 +172,8 @@ class StartDQ:
             rule_id = data_rule_lvls['rule_id']
             next_pass = data_rule_lvls['next_pass']
             next_fail = data_rule_lvls['next_fail']
+            kwargs = data_rule_lvls['kwargs']
+
             g_result = 1 if no_of_lvls == current_lvl_no else 0
 
             be_id = self.get_be_id_by_be_att_id(str(be_att_id))
@@ -184,7 +186,7 @@ class StartDQ:
             result_data_set_tmp = result_data_set + "_tmp"
             if is_dir_exists(base_bt_current_data_set):
                 self.execute_lvl_data_rules(base_bt_current_data_set, result_data_set, result_data_set_tmp, source_id, be_att_dr_id, category_no,
-                                            be_att_id, rule_id, g_result, current_lvl_no, next_pass, next_fail)
+                                            be_att_id, rule_id, g_result, current_lvl_no, next_pass, next_fail, kwargs)
 
     def get_next_be_att_id_category(self, source_id, be_att_id, current_category):
         next_category_query = "select min(category_no) next_category_no" \
