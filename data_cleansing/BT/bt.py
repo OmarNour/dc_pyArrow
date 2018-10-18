@@ -163,9 +163,8 @@ class StartBT:
         bt_ids = data_to_list(new_rows_df['bt_id'])
         return new_rows_df[self.bt_columns], bt_ids
 
-    def get_source_data(self, source_id, base_source_data_set, process_no):
+    def get_source_data(self, source_id, source_data_set):
         att_query_df = self.get_att_ids_df(source_id)
-        source_data_set = base_source_data_set + '\\'+ self.dnx_config.process_no_column_name+'='+process_no
         for chunk_data in read_batches_from_parquet(source_data_set, None, int(self.parameters_dict['temp_source_batch_size']), self.cpu_num_workers):
             melt_chunk_data = self.melt_query_result(chunk_data, source_id)
             attach_attribute_id_result = self.attach_attribute_id(att_query_df, melt_chunk_data)
@@ -306,6 +305,7 @@ class StartBT:
         base_bt_current_data_set = self.dnx_db_path + bt_current_collection
         bt_data_set = self.dnx_db_path + bt_collection
         base_source_data_set = self.src_db_path + source_collection
+        source_data_set = base_source_data_set + '\\' + self.dnx_config.process_no_column_name + '=' + process_no
         # if int(self.parameters_dict['get_delta']) == 1:
         #     current_data_set_old = bt_current_data_set + "_old"
         #     try:
@@ -316,8 +316,8 @@ class StartBT:
         # else:
         #     table_batches = []
         drill = PyDrill(host='localhost', port=8047)
-        if is_dir_exists(base_source_data_set):
-            for i, get_source_data in enumerate(self.get_source_data(source_id,base_source_data_set,process_no)):
+        if is_dir_exists(source_data_set):
+            for i, get_source_data in enumerate(self.get_source_data(source_id,source_data_set)):
                 bt_current_data_set = base_bt_current_data_set + "\\" + str(i)
                 source_data_df, bt_ids = get_source_data[0], get_source_data[1]
                 if int(self.parameters_dict['get_delta']) == 1:
