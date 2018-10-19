@@ -12,6 +12,11 @@ import os, sys
 bt_object_cols = ['bt_id', 'SourceID', 'RowKey', 'AttributeValue', 'RefSID', 'HashValue',
                                'InsertedBy', 'ModifiedBy', 'ValidFrom', 'ValidTo', 'process_no']
 
+bt_partioned_object_cols = ['bt_id', 'RowKey', 'AttributeValue', 'RefSID', 'HashValue',
+                               'InsertedBy', 'ModifiedBy', 'ValidFrom', 'ValidTo', 'process_no']
+
+
+bt_partition_cols = ['SourceID', 'ResetDQStage', 'AttributeID']
 
 def is_dir_exists(path):
     return os.path.exists(path)

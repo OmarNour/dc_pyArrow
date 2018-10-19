@@ -4,6 +4,7 @@ import data_cleansing.dc_methods.dc_methods as dc_methods
 def rules_orchestrate(rule_id, att_value, kwargs):
     # print('rules_orchestrate', att_value)
     if kwargs:
+        # ex: Firstname="Sita" Lastname="Sharma" Age=22 Phone=1234567890
         kwargs = eval("dict(%s)" % ','.join(kwargs.split()))
 
     if rule_id == 1:
@@ -43,11 +44,13 @@ def rule3(att_value, kwargs):
     else:
         return 0
 
+
 def rule100(att_value, kwargs):
     # print('rule100', att_value)
-    # print('kwars_parameters', kwargs)
+    print('rule100_kwars_parameters', att_value, kwargs)
     # print('first value in Kwargs', kwargs['Firstname'])
+    # citizen_src =
     if len(att_value) > 4:
-        return 1
-    else:
         return 0
+    else:
+        return 1
