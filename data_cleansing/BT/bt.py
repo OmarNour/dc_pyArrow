@@ -68,7 +68,7 @@ class StartBT:
         for i, data in columns_data.iterrows():
             f_col[data['query_column_name']] = data['F_be_att_id']
             # print('get_source_column_name', data)
-        print('f_col', f_col)
+        # print('f_col', f_col)
         return f_col
 
     def get_rowkey_column_name(self, source_id, be_id):

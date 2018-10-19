@@ -71,7 +71,7 @@ class StartDQ:
         return data_rules
 
     def get_tmp_rowkeys(self, result_data_set_tmp):
-        print('result_data_set_tmp', result_data_set_tmp)
+        # print('result_data_set_tmp', result_data_set_tmp)
         for df in read_batches_from_parquet(result_data_set_tmp, None, int(self.parameters_dict['bt_batch_size']), self.cpu_num_workers):
             yield df['RowKey']
 
@@ -99,7 +99,7 @@ class StartDQ:
                 yield pd.DataFrame()
 
     def insert_result_df(self, result_df, g_result, result_data_set, next_pass, next_fail, result_data_set_tmp):
-        print('insert_result_df started')
+        # print('insert_result_df started')
         if not result_df.empty:
             if g_result == 1:
                 # print('result_data_set.columns', result_df.columns)
@@ -129,7 +129,7 @@ class StartDQ:
     def execute_lvl_data_rules(self, base_bt_current_data_set, result_data_set, result_data_set_tmp, source_id, be_att_dr_id, category_no,
                                be_att_id, rule_id, g_result, current_lvl_no, next_pass, next_fail, kwargs):
 
-        print('execute_lvl_data_rules started')
+        # print('execute_lvl_data_rules started')
         columns = ['SourceID', 'RowKey', 'AttributeID', 'AttributeValue', 'ResetDQStage']
         columns = ['RowKey', 'AttributeValue']
         filter = {'SourceID': source_id,
@@ -156,7 +156,7 @@ class StartDQ:
                 self.insert_result_df(result_df, g_result, result_data_set, next_pass, next_fail, result_data_set_tmp)
 
     def execute_data_rules(self, data_rule, category_no):
-        print('execute_data_rules started')
+        # print('execute_data_rules started')
         be_att_dr_id = data_rule['_id']
         source_id = str(data_rule['be_data_source_id'])
         be_data_rule_lvls_query = "select be_att_id, rule_id, next_pass, next_fail, kwargs from " + \
