@@ -35,9 +35,41 @@ def get_cpu_count_cpu_num_workers(config_db_url, parameters_collection, no_of_su
 
     return cpu_count, cpu_num_workers
 
+
+def dc_multiprocessing(to_run, no_of_subprocess=None, inputs="", desc=None):
+
+    result = get_cpu_count_cpu_num_workers(dnx_config.config_db_url, dnx_config.parameters_collection, no_of_subprocess=no_of_subprocess)
+    cpu_count, cpu_num_workers = result[0], result[1]
+    # to_run = '/run_engine.py'
+    process_dict = {}
+    process_list = []
+    for p in range(cpu_count):
+        process_list.append(p)
+        process_no = str(p)
+
+        main_inputs = " process_no="+process_no+" cpu_num_workers="+str(cpu_num_workers)+" "
+        all_inputs = main_inputs + inputs
+        process_dict[process_no] = subprocess.Popen(['python',
+                                                     to_run,
+                                                     all_inputs])
+
+    count_finished_processes = 0
+    while process_list:
+        for p_no in range(cpu_count):
+            if process_dict[str(p_no)].poll() is not None:
+                try:
+                    process_list.remove(p_no)
+                    count_finished_processes += 1
+                    print('-----------------------------------------------------------')
+                    print('Process no.', p_no, 'finished, total finished', count_finished_processes, 'out of', cpu_count)
+
+                except:
+                    None
+
+
 if __name__ == '__main__':
     # build_config_db()
-    bt_process_dict = {}
+
     dq_process_dict = {}
 
     dnx_config = DNXConfig.Config()
@@ -68,81 +100,24 @@ if __name__ == '__main__':
         if BT == 1:
             if RD == 1:
                 load_source_data_time = datetime.datetime.now()
-                loading_source_data = subprocess.Popen(['python',
-                                                        module_path + '/load_source_data/load_source_data.py',
-                                                        str(bt_cpu_count)])
-
-                while loading_source_data.poll() is None:
-                    None
+                to_run = module_path + '/load_source_data/load_source_data.py'
+                inputs = "cpu_count=" + str(bt_cpu_count)
+                dc_multiprocessing(to_run, no_of_subprocess=1, inputs=inputs, desc=None)
 
                 print('####################     load_source_data_time:', datetime.datetime.now() - load_source_data_time, '      ####################')
             # config_database[dnx_config.multiprocessing_collection].drop()
 
             bt_time = datetime.datetime.now()
-            for p in range(bt_cpu_count):
-                process_no = str(p)
-                # config_database[dnx_config.multiprocessing_collection].insert_one({dnx_config.multiprocessing_p_no: p,
-                #                                                                    dnx_config.multiprocessing_cpu_num_workers: bt_cpu_num_workers,
-                #                                                                    dnx_config.multiprocessing_etl: 1,
-                #                                                                    dnx_config.multiprocessing_bt_inserts: 1,
-                #                                                                    dnx_config.multiprocessing_bt_current_inserts: 1,
-                #                                                                    dnx_config.multiprocessing_bt_current_deletes: 1,
-                #                                                                    dnx_config.multiprocessing_process_alive: 1})
-                bt_process_dict[process_no] = subprocess.Popen(['python',
-                                                                module_path + '/run_engine.py',
-                                                                process_no,
-                                                                str(BT),
-                                                                str(0),
-                                                                str(bt_cpu_num_workers)])
-
-            count_finished_processes = 0
-            process_list = []
-            for p_no in range(bt_cpu_count):
-                process_list.append(p_no)
-
-            while process_list:
-                for p_no in range(bt_cpu_count):
-                    if bt_process_dict[str(p_no)].poll() is not None:
-                        try:
-                            process_list.remove(p_no)
-                            count_finished_processes += 1
-                            # config_database[dnx_config.multiprocessing_collection].update_one({dnx_config.multiprocessing_p_no: p_no},
-                            #                                                                   {'$set': {dnx_config.multiprocessing_process_alive: 0}})
-                            print('-----------------------------------------------------------')
-                            print('BT Process no.', p_no, 'finished, total finished', count_finished_processes, 'out of', bt_cpu_count)
-
-                        except:
-                            None
-
+            to_run = module_path + '/run_engine.py'
+            inputs = "BT=" + str(BT)
+            dc_multiprocessing(to_run, no_of_subprocess=None, inputs=inputs, desc=None)
             # 65,010,912 bt current
             print('####################     bt_time:', datetime.datetime.now() - bt_time, '      ####################')
         if DQ == 1:
             dq_time = datetime.datetime.now()
-            for p in range(dq_cpu_count):
-                process_no = str(p)
-                dq_process_dict[process_no] = subprocess.Popen(['python',
-                                                                module_path + '/run_engine.py',
-                                                                process_no,
-                                                                str(0),
-                                                                str(DQ),
-                                                                str(dq_cpu_num_workers)])
-
-            count_finished_processes = 0
-            process_list = []
-            for p_no in range(dq_cpu_count):
-                process_list.append(p_no)
-
-            while process_list:
-                for p_no in range(dq_cpu_count):
-                    if dq_process_dict[str(p_no)].poll() is not None:
-                        try:
-                            process_list.remove(p_no)
-                            count_finished_processes += 1
-                            print('-----------------------------------------------------------')
-                            print('DQ Process no.', p_no, 'finished, total finished', count_finished_processes, 'out of', dq_cpu_count)
-
-                        except:
-                            None
+            to_run = module_path + '/run_engine.py'
+            inputs = "DQ=" + str(DQ)
+            dc_multiprocessing(to_run, no_of_subprocess=1, inputs=inputs, desc=None)
             print('####################     dq_time:', datetime.datetime.now() - dq_time, '      ####################')
 
         # config_database[dnx_config.run_engine_collection].update_one({'_id': i['_id']}, {'$set': {'end_time': datetime.datetime.now()}})

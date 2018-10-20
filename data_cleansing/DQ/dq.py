@@ -4,7 +4,6 @@ from data_cleansing.dc_methods.dc_methods import get_all_data_from_source, get_b
     count_files_in_dir, get_files_in_dir, count_folders_in_dir, read_batches_from_parquet, save_to_parquet, delete_dataset, rename_dataset, single_quotes, bt_object_cols, \
     read_all_from_parquet, is_dir_exists, bt_partioned_object_cols
 import data_cleansing.DQ.data_rules.rules as dr
-import swifter
 from pydrill.client import PyDrill
 
 
@@ -34,8 +33,8 @@ class StartDQ:
             result_df = bt_current_data_df
             result_df['be_att_dr_id'] = be_att_dr_id
             result_df['data_rule_id'] = data_rule_id
-            result_df['is_issue'] = result_df.swifter.apply(lambda x: dr.rules_orchestrate(data_rule_id, x['AttributeValue'], kwargs), axis=1)
-            result_df['data_value_pattern'] = result_df['AttributeValue'].swifter.apply(self.get_data_value_pattern)
+            result_df['is_issue'] = result_df.apply(lambda x: dr.rules_orchestrate(data_rule_id, x['AttributeValue'], kwargs), axis=1)
+            result_df['data_value_pattern'] = result_df['AttributeValue'].apply(self.get_data_value_pattern)
         return result_df
 
     def get_source_categories(self):
@@ -129,12 +128,7 @@ class StartDQ:
     def execute_lvl_data_rules(self, base_bt_current_data_set, result_data_set, result_data_set_tmp, source_id, be_att_dr_id, category_no,
                                be_att_id, rule_id, g_result, current_lvl_no, next_pass, next_fail, kwargs):
 
-        # print('execute_lvl_data_rules started')
-        columns = ['SourceID', 'RowKey', 'AttributeID', 'AttributeValue', 'ResetDQStage']
         columns = ['RowKey', 'AttributeValue']
-        filter = {'SourceID': source_id,
-                  'ResetDQStage': category_no,
-                  'AttributeID': be_att_id}
 
         suffix = "_old"
         result_data_set_tmp_old = self.switch_dataset(result_data_set_tmp, suffix)
@@ -257,21 +251,8 @@ class StartDQ:
 
                             for bt_current in read_batches_from_parquet(bt_dataset_old, None, int(self.parameters_dict['bt_batch_size']), self.cpu_num_workers):
 
-                                # bt_current1 = bt_current[(bt_current['SourceID'] == source_id) &
-                                #                          (bt_current['ResetDQStage'] == category_no) &
-                                #                          (bt_current['AttributeID'] == be_att_id)]
-
                                 bt_current_passed = bt_current[~bt_current['RowKey'].isin(self.rowkeys.index)]
                                 bt_current_failed = bt_current[~bt_current['bt_id'].isin(bt_current_passed['bt_id'])]
-                                # print('bt_current1.index', len(bt_current1.index), be_att_id)
-                                # if len(bt_current.index) > 0:
-                                #     bt_current['ResetDQStage'] = bt_current.swifter.apply(lambda x: self.check_cells_for_upgrade(x['SourceID'],
-                                #                                                                                                    x['RowKey'],
-                                #                                                                                                    x['AttributeID'],
-                                #                                                                                                    x['ResetDQStage'],
-                                #                                                                                                    next_cat,
-                                #                                                                                                    source_id,
-                                #                                                                                                    be_att_id), axis=1)
 
                                 save_to_parquet(bt_current_failed, current_category_dataset, partition_cols=None, string_columns=bt_partioned_object_cols)
                                 save_to_parquet(bt_current_passed, next_category_dataset, partition_cols=None, string_columns=bt_partioned_object_cols)
@@ -295,9 +276,12 @@ class StartDQ:
             category_no = source_id_category_no['category_no']
 
             source_category_rules = self.get_source_category_rules(source_id, category_no)
-
+            # parallel_execute_data_rules = []
             for j, data_rule in source_category_rules.iterrows():
                 # open multi processes here
-                self.execute_data_rules(data_rule, category_no)
 
+                self.execute_data_rules(data_rule, category_no)
+                # delayed_execute_data_rules = delayed(self.execute_data_rules)(data_rule, category_no)
+                # parallel_execute_data_rules.append(delayed_execute_data_rules)
+            # compute(*parallel_execute_data_rules, num_workers=self.cpu_num_workers)
             self.upgrade_category(source_id, category_no)

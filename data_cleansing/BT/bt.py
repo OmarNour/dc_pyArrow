@@ -10,7 +10,6 @@ import os
 import pyarrow.parquet as pq
 import pyarrow as pa
 from pydrill.client import PyDrill
-import swifter
 
 # from pyspark import SparkConf
 # from pyspark.context import SparkContext
@@ -52,9 +51,9 @@ class StartBT:
 
     def prepare_source_df(self, source_df, row_key_column_name, process_no_column_name, no_of_cores):
         new_source_df = source_df
-        new_source_df[row_key_column_name] = new_source_df[row_key_column_name].swifter.apply(sha1)
+        new_source_df[row_key_column_name] = new_source_df[row_key_column_name].apply(sha1)
         new_source_df['_id'] = new_source_df[row_key_column_name]
-        new_source_df[process_no_column_name] = new_source_df.swifter.apply(lambda x: assign_process_no(no_of_cores, x.name), axis=1)
+        new_source_df[process_no_column_name] = new_source_df.apply(lambda x: assign_process_no(no_of_cores, x.name), axis=1)
         return new_source_df
 
     def get_source_column_name(self, source_id, be_id):
@@ -125,7 +124,7 @@ class StartBT:
         df_melt_result['SourceID'] = source_id
         df_melt_result['new_row'] = 1
         df_melt_result['RefSID'] = None
-        df_melt_result['HashValue'] = df_melt_result['AttributeValue'].swifter.apply(sha1)
+        df_melt_result['HashValue'] = df_melt_result['AttributeValue'].apply(sha1)
         df_melt_result['InsertedBy'] = 'ETL'
         df_melt_result['ModifiedBy'] = None
         df_melt_result['ValidFrom'] = datetime.datetime.now().isoformat()
@@ -141,7 +140,7 @@ class StartBT:
         query = "select query_column_name, be_att_id from " + data_sources_mapping + " where be_data_source_id = " + single_quotes(be_data_source_id)
         data_sources_mapping_data = get_all_data_from_source(self.dnx_config.config_db_url, None, query)
 
-        data_sources_mapping_data['ResetDQStage'] = data_sources_mapping_data.swifter.apply(lambda row: get_minimum_category(self.dnx_config.config_db_url,
+        data_sources_mapping_data['ResetDQStage'] = data_sources_mapping_data.apply(lambda row: get_minimum_category(self.dnx_config.config_db_url,
                                                                                                                              "",
                                                                                                                              self.dnx_config.be_attributes_data_rules_collection,
                                                                                                                              row['be_att_id']), axis=1)

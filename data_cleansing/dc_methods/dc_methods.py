@@ -18,6 +18,11 @@ bt_partioned_object_cols = ['bt_id', 'RowKey', 'AttributeValue', 'RefSID', 'Hash
 
 bt_partition_cols = ['SourceID', 'ResetDQStage', 'AttributeID']
 
+def string_to_dict(sting_dict):
+    if sting_dict:
+        # ex: Firstname="Sita" Lastname="Sharma" Age=22 Phone=1234567890
+        return eval("dict(%s)" % ','.join(sting_dict.split()))
+
 def is_dir_exists(path):
     return os.path.exists(path)
 

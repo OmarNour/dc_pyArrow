@@ -47,7 +47,7 @@ def rule3(att_value, kwargs):
 
 def rule100(att_value, kwargs):
     # print('rule100', att_value)
-    print('rule100_kwars_parameters', att_value, kwargs)
+    # print('rule100_kwars_parameters', att_value, kwargs)
     # print('first value in Kwargs', kwargs['Firstname'])
     # citizen_src =
     if len(att_value) > 4:

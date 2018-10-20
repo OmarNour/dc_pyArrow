@@ -2,27 +2,30 @@ import sys
 # sys.path.append("C:\\Users\\Omar\\PycharmProjects\\data_cleansing")
 from data_cleansing.BT.bt import StartBT
 from data_cleansing.DQ.dq import StartDQ
+import data_cleansing.dc_methods.dc_methods as dc_methods
 import os
 
 
 if __name__ == '__main__':
+    all_inputs = dc_methods.string_to_dict(sys.argv[1])
+    print('all_inputs', all_inputs)
     try:
-        process_no = int(sys.argv[1])
+        process_no = all_inputs['process_no']#int(sys.argv[1])
     except:
         process_no = 0
 
     try:
-        BT = int(sys.argv[2])
+        BT = all_inputs['BT']#int(sys.argv[2])
     except:
         BT = 0
 
     try:
-        DQ = int(sys.argv[3])
+        DQ = all_inputs['DQ']#int(sys.argv[3])
     except:
         DQ = 0
 
     try:
-        cpu_num_workers = int(sys.argv[4])
+        cpu_num_workers = all_inputs['cpu_num_workers']#int(sys.argv[4])
     except:
         cpu_num_workers = -1
     # print(sys.modules)
