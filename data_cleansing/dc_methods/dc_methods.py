@@ -82,18 +82,26 @@ def save_to_parquet(df, dataset_root_path, partition_cols=None, string_columns=N
         print("{:,}".format(len(df.index)), 'records inserted into', dataset_root_path, 'in', datetime.datetime.now() - start_time)
 
 
-def read_batches_from_parquet(dataset_root_path, columns, batch_size, nthreads):
+def read_batches_from_parquet(dataset_root_path, columns, batch_size, nthreads, filter=None):
 
     for table in (table for table in pq.read_table(dataset_root_path,
                                                       columns=columns,
                                                       use_threads=nthreads).to_batches(batch_size)):
         df = table.to_pandas()
+        if filter:
+            df = df[df[filter[0]].isin(filter[1])]
         yield df
 
-def read_all_from_parquet(dataset_root_path, columns, nthreads):
+
+def read_all_from_parquet(dataset_root_path, columns, nthreads, filter=None):
+    print('dataset_root_path', dataset_root_path)
     df = pq.read_table(dataset_root_path,
                        columns=columns,
                        use_threads=nthreads).to_pandas()
+
+    if filter:
+        for i in filter:
+            df = df[df[i[0]].isin(i[1])]
     return df
 
 
@@ -283,6 +291,31 @@ def get_be_core_table_names(config_db, org_business_entities, be_id):
     dq_result_collection = list_to_string(get_all_data_from_source(config_db, None, org_business_entities_collection_query)['dq_result_collection'].values)
     return bt_current_collection, bt_collection, source_collection, dq_result_collection
 
+
+def get_attribute_value_by_rowkey(bt_dataset, filters=None):
+    folders_count = count_folders_in_dir(bt_dataset)
+    for f in range(folders_count):
+        bt_src = bt_dataset + "\\" + str(f)
+
+        # if be_att_id:
+        #     filter_be_att_id = ['AttributeID', [be_att_id]]
+        #     filters = [filter_be_att_id]
+        #
+        # if RowKey:
+        #     filter_rowkey = ['RowKey', [RowKey]]
+        #     filters.append(filter_rowkey)
+        #
+        # if AttributeValue:
+        #     filter_AttributeValue = ['AttributeValue', [AttributeValue]]
+        #     filters.append(filter_AttributeValue)
+
+        # print('filtersfilters', filters)
+        values = read_all_from_parquet(bt_src, ['RowKey', 'AttributeValue'], 4, filter=filters)
+
+        if not values.empty:
+            return values
+        else:
+            return pd.DataFrame()
 #
 # if __name__ == '__main__':
 #     print(drill_source_single_quotes('/x/s/x/s'))

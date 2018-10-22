@@ -33,7 +33,7 @@ class StartDQ:
             result_df = bt_current_data_df
             result_df['be_att_dr_id'] = be_att_dr_id
             result_df['data_rule_id'] = data_rule_id
-            result_df['is_issue'] = result_df.apply(lambda x: dr.rules_orchestrate(data_rule_id, x['AttributeValue'], kwargs), axis=1)
+            result_df['is_issue'] = result_df.apply(lambda x: dr.rules_orchestrate(data_rule_id, x['AttributeValue'], x['RowKey'], kwargs), axis=1)
             result_df['data_value_pattern'] = result_df['AttributeValue'].apply(self.get_data_value_pattern)
         return result_df
 
