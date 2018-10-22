@@ -8,6 +8,7 @@ from data_cleansing.dc_methods.dc_methods import list_to_string, get_all_data_fr
 import data_cleansing.CONFIG.Config as DNXConfig
 import datetime
 import math
+import data_cleansing.dc_methods.dc_methods as dc_methods
 
 
 def get_cpu_count_cpu_num_workers(config_db_url, parameters_collection, no_of_subprocess=None):
@@ -114,6 +115,10 @@ if __name__ == '__main__':
             # 65,010,912 bt current
             print('####################     bt_time:', datetime.datetime.now() - bt_time, '      ####################')
         if DQ == 1:
+            parquet_db_root_path = dnx_config.parquet_db_root_path
+            result_db_path = parquet_db_root_path + dnx_config.result_db_name + '\\'
+            dc_methods.delete_dataset(result_db_path)
+
             dq_time = datetime.datetime.now()
             to_run = module_path + '/run_engine.py'
             inputs = "DQ=" + str(DQ)

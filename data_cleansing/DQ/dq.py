@@ -267,8 +267,6 @@ class StartDQ:
         self.process_no = process_no
         self.rowkeys = pd.DataFrame()
 
-
-        delete_dataset(self.result_db_path)
         source_categories = self.get_source_categories()
 
         for i, source_id_category_no in source_categories.iterrows():
