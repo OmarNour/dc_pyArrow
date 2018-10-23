@@ -5,6 +5,7 @@ from data_cleansing.dc_methods.dc_methods import get_all_data_from_source, get_b
     read_all_from_parquet, is_dir_exists, bt_partioned_object_cols
 import data_cleansing.DQ.data_rules.rules as dr
 from pydrill.client import PyDrill
+# import swifter
 
 
 class StartDQ:
@@ -128,6 +129,8 @@ class StartDQ:
     def execute_lvl_data_rules(self, base_bt_current_data_set, result_data_set, result_data_set_tmp, source_id, be_att_dr_id, category_no,
                                be_att_id, rule_id, g_result, current_lvl_no, next_pass, next_fail, kwargs):
 
+        print(source_id, be_att_dr_id, category_no,
+              be_att_id, rule_id, g_result, current_lvl_no, next_pass, next_fail)
         columns = ['RowKey', 'AttributeValue']
 
         suffix = "_old"

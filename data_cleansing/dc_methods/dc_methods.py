@@ -89,12 +89,13 @@ def read_batches_from_parquet(dataset_root_path, columns, batch_size, nthreads, 
                                                       use_threads=nthreads).to_batches(batch_size)):
         df = table.to_pandas()
         if filter:
-            df = df[df[filter[0]].isin(filter[1])]
+            for i in filter:
+                df = df[df[i[0]].isin(i[1])]
         yield df
 
 
 def read_all_from_parquet(dataset_root_path, columns, nthreads, filter=None):
-    print('dataset_root_path', dataset_root_path)
+    # print('dataset_root_path', dataset_root_path)
     df = pq.read_table(dataset_root_path,
                        columns=columns,
                        use_threads=nthreads).to_pandas()

@@ -1,5 +1,6 @@
 import data_cleansing.dc_methods.dc_methods as dc_methods
-
+import data_cleansing.CONFIG.Config as DNXConfig
+from pydrill.client import PyDrill
 
 def rules_orchestrate(rule_id, att_value, RowKey, kwargs):
     # print('rules_orchestrate', att_value)
@@ -46,20 +47,39 @@ def rule3(att_value, RowKey, kwargs):
         return 0
 
 
+
 def rule100(att_value, RowKey, kwargs):
+
+    citizens_cards_src = kwargs['citizens_cards_src']
+    citizen_src = kwargs['citizen_src']
+    cards_src = kwargs['cards_src']
+    # drill_parquet_db_root_path = kwargs['drill_parquet_db_root_path']
+    # dnx_db_name = kwargs['dnx_db_name']
+    att_410_value = att_value
+    where = " where AttributeValue = " + str(att_410_value) + " and AttributeID=410"
+    citizens_cards_src = "/bt_current_9898_120"
+    full_query = "SELECT RowKey,AttributeValue from dfs.`/opt/parquet_db//DNX//bt_current_9898_120` " + where
+    citizens_cards_src_df = dc_methods.read_from_parquet_drill(drill=None,
+                                                               full_query=full_query)
+    print('drill_citizens_cards_src', len(citizens_cards_src_df.index))
+    return 0
+
+
+def rule100_old(att_value, RowKey, kwargs):
 
     citizens_cards_src = kwargs['citizens_cards_src']
     citizen_src = kwargs['citizen_src']
     cards_src = kwargs['cards_src']
 
     #filters ex : [['AttributeID', [410]], ['RowKey', ['f3b24cdd53c1412d9e849e286386bfcc0b280e07']]]
-    # att_410_filter = [['AttributeID', [410]], ['RowKey', [RowKey]]]
-    # att_410_value = dc_methods.get_attribute_value_by_rowkey(citizens_cards_src, att_410_filter)['AttributeValue'].values[0]
-    att_410_value = att_value
 
+    att_410_value = att_value
+    #
     att_410_rowkeys_filter = [['AttributeID', [410]], ['AttributeValue', [att_410_value]]]
-    att_410_rowkeys_data = dc_methods.get_attribute_value_by_rowkey(citizens_cards_src, att_410_rowkeys_filter)['RowKey'].values.tolist()
-    # print('att_410_rowkeys_data', att_410_rowkeys_data)
+    # att_410_rowkeys_filter = None
+    att_410_rowkeys_data = dc_methods.get_attribute_value_by_rowkey(citizens_cards_src, att_410_rowkeys_filter)
+    if not att_410_rowkeys_data.empty:
+        att_410_rowkeys_data = att_410_rowkeys_data['RowKey'].values.tolist()
 
     att_420_filter = [['AttributeID', [420]], ['RowKey', att_410_rowkeys_data]]
     att_420_value = dc_methods.get_attribute_value_by_rowkey(citizens_cards_src, att_420_filter)['AttributeValue'].values.tolist()
@@ -79,6 +99,8 @@ def rule100(att_value, RowKey, kwargs):
     count_cards_src_100_a520_eq_1_a510_eq_v420_data = len(cards_src_100_a520_eq_1_a510_eq_v420.index)
 
 
+    # count_citizen_src_110_a630_eq_1_a620_eq_v410_data = 0
+    # count_cards_src_100_a520_eq_1_a510_eq_v420_data = 0
     # print('att_410', att_410_value)
     # print('att_420', att_420_value)
     # print('count_citizen_src_110_a630_eq_1_a620_eq_v410_data', count_citizen_src_110_a630_eq_1_a620_eq_v410_data)
