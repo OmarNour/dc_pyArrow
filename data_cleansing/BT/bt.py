@@ -1,7 +1,7 @@
 import sys
 from data_cleansing.dc_methods.dc_methods import get_all_data_from_source, sha1, single_quotes, data_to_list, \
-    get_chuncks_of_data_from_source, list_to_string, delete_dataset, save_to_parquet, assign_process_no, get_minimum_category,\
-    read_from_parquet_drill, get_be_core_table_names, rename_dataset, read_batches_from_parquet, bt_object_cols, is_dir_exists, bt_partition_cols, \
+    get_chuncks_of_data_from_source, list_to_string, delete_dataset, save_to_parquet, assign_process_no, get_minimum_category, \
+    folders_in_dir, get_be_core_table_names, rename_dataset, read_batches_from_parquet, bt_object_cols, is_dir_exists, bt_partition_cols, \
     count_folders_in_dir
 import data_cleansing.CONFIG.Config as DNXConfig
 import datetime
@@ -304,14 +304,16 @@ class StartBT:
 
     def get_bt_current_data(self, bt_dataset, columns, filter):
         bt_df = pd.DataFrame()
-        folders_count = count_folders_in_dir(bt_dataset)
-        for f in range(folders_count):
-            complete_dataset = bt_dataset + "\\" + str(f)
+
+        # print('folders_in_dir', folders_in_dir(bt_dataset))
+        for f in folders_in_dir(bt_dataset):
+            complete_dataset = bt_dataset + "\\" + f
             for df in read_batches_from_parquet(complete_dataset, columns, int(self.parameters_dict['bt_batch_size']), self.cpu_num_workers, filter=filter):
+                # print('df_info', df['SourceID'])
                 if not df.empty:
                     bt_df = bt_df.append(df)
 
-        print('len____bt_df', len(bt_df.index))
+        # print('len____bt_df', len(bt_df.index))
         return bt_df
 
     def etl_be(self, source_id, bt_current_collection, bt_collection, source_collection, process_no, cpu_num_workers):
@@ -328,7 +330,7 @@ class StartBT:
                     bt_current_collection_old = base_bt_current_data_set + "_old"
                     if is_dir_exists(bt_current_collection_old):
                         filter_bt_ids = [['bt_id', bt_ids], ]
-                        print('len___filter_bt_ids', len(bt_ids))
+                        # print('len___filter_bt_ids', len(bt_ids))
                         bt_current_data_df = self.get_bt_current_data(bt_current_collection_old, self.bt_columns, filter_bt_ids)
                         self.load_data(source_data_df, bt_current_data_df, bt_data_set, bt_current_data_set)
 

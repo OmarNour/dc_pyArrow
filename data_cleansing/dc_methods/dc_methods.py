@@ -35,6 +35,9 @@ def count_files_in_dir(path):
     files = get_files_in_dir(path)
     return len(files)
 
+def folders_in_dir(path):
+    return os.listdir(path)
+
 def count_folders_in_dir(path):
     return len(os.listdir(path))
 
@@ -72,7 +75,7 @@ def save_to_parquet(df, dataset_root_path, partition_cols=None, string_columns=N
         for i in string_columns:
             df[i] = df[i].apply(xstr)
 
-        partial_results_table = pa.Table.from_pandas(df)
+        partial_results_table = pa.Table.from_pandas(df=df,nthreads=4)
 
         pq.write_to_dataset(partial_results_table, root_path=dataset_root_path, partition_cols=partition_cols,
                             # flavor='spark',
@@ -85,10 +88,11 @@ def save_to_parquet(df, dataset_root_path, partition_cols=None, string_columns=N
 def read_batches_from_parquet(dataset_root_path, columns, batch_size, nthreads, filter=None):
 
     for table in (table for table in pq.read_table(dataset_root_path,
-                                                      columns=columns,
-                                                      use_threads=nthreads,
+                                                   columns=columns,
+                                                   use_threads=nthreads,
                                                    use_pandas_metadata=True).to_batches(batch_size)):
         df = table.to_pandas()
+
         if filter:
             for i in filter:
                 df = df[df[i[0]].isin(i[1])]
