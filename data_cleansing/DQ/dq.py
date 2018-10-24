@@ -76,18 +76,26 @@ class StartDQ:
             yield df['RowKey']
 
     def get_bt_current_data(self, bt_dataset, columns, source_id, category_no, be_att_id):
+        empty_df = pd.DataFrame()
         folders_count = count_folders_in_dir(bt_dataset)
         for f in range(folders_count):
             complete_dataset = bt_dataset + "\\" + str(f) + "\\SourceID=" + str(source_id) + "\\ResetDQStage=" + str(category_no) + "\\AttributeID=" + str(be_att_id)
             if is_dir_exists(complete_dataset):
                 for df in read_batches_from_parquet(complete_dataset, columns, int(self.parameters_dict['bt_batch_size']), self.cpu_num_workers):
                     # 'SourceID', 'ResetDQStage', 'AttributeID'
-                    df['SourceID'] = source_id
-                    df['ResetDQStage'] = category_no
-                    df['AttributeID'] = be_att_id
-                    yield df
+                    if not df.empty:
+                        df['SourceID'] = source_id
+                        df['ResetDQStage'] = category_no
+                        df['AttributeID'] = be_att_id
+                        yield df
+                    else:
+                        yield empty_df
             else:
-                yield pd.DataFrame()
+                yield empty_df
+
+                        # bt_df = bt_df.append(df)
+
+        # return bt_df
 
     def insert_result_df(self, result_df, g_result, result_data_set, next_pass, next_fail, result_data_set_tmp):
         # print('insert_result_df started')
@@ -126,6 +134,22 @@ class StartDQ:
 
         suffix = "_old"
         result_data_set_tmp_old = self.switch_dataset(result_data_set_tmp, suffix)
+
+        # bt_current_data_df = self.get_bt_current_data(base_bt_current_data_set, columns, source_id, category_no, be_att_id)
+        # if not bt_current_data_df.empty:
+        #     if current_lvl_no > 1:
+        #         result_df = pd.DataFrame()
+        #         if is_dir_exists(result_data_set_tmp_old):
+        #             for row_keys_df in self.get_tmp_rowkeys(result_data_set_tmp_old):  # filter with level number too!
+        #                 bt_nxt_lvl_current_data_df = bt_current_data_df[bt_current_data_df['RowKey'].isin(row_keys_df)]
+        #
+        #                 if not bt_nxt_lvl_current_data_df.empty:
+        #                     result_lvl_df = self.validate_data_rule(bt_nxt_lvl_current_data_df, be_att_dr_id, rule_id, kwargs)
+        #                     result_df = result_df.append(result_lvl_df)
+        #
+        #     else:
+        #         result_df = self.validate_data_rule(bt_current_data_df, be_att_dr_id, rule_id, kwargs)
+        #     self.insert_result_df(result_df, g_result, result_data_set, next_pass, next_fail, result_data_set_tmp)
 
         for bt_current_data_df in self.get_bt_current_data(base_bt_current_data_set, columns, source_id, category_no, be_att_id):
             if not bt_current_data_df.empty:

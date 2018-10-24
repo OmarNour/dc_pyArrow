@@ -86,7 +86,8 @@ def read_batches_from_parquet(dataset_root_path, columns, batch_size, nthreads, 
 
     for table in (table for table in pq.read_table(dataset_root_path,
                                                       columns=columns,
-                                                      use_threads=nthreads).to_batches(batch_size)):
+                                                      use_threads=nthreads,
+                                                   use_pandas_metadata=True).to_batches(batch_size)):
         df = table.to_pandas()
         if filter:
             for i in filter:
@@ -98,32 +99,14 @@ def read_all_from_parquet(dataset_root_path, columns, nthreads, filter=None):
     # print('dataset_root_path', dataset_root_path)
     df = pq.read_table(dataset_root_path,
                        columns=columns,
-                       use_threads=nthreads).to_pandas()
+                       use_threads=nthreads,
+                       use_pandas_metadata=True).to_pandas()
 
     if filter:
         for i in filter:
             df = df[df[i[0]].isin(i[1])]
     return df
 
-
-def read_from_parquet(table_batches, be_ids_filter=None):
-
-    if len(table_batches) > 0 :
-        # print('read_from_parquet', dataset_root_path, chunk_size)
-        # table_batches = pq.read_table(dataset_root_path, columns=columns).to_batches(chunk_size)
-        # tx = pa.RecordBatch.from_arrays(dataset_root_path,['e'],)
-        # print(tx)
-        # print(table_batches)
-        # my_list = [1,2,3,4]
-        # x = (x ** 2 for x in my_list)
-        # table_batches = (table for table in pq.read_table(dataset_root_path, columns=columns).to_batches(chunk_size))
-        # print('table_batches2', table_batches)
-        for table in table_batches:
-            # print('tabletable', table)
-            df = table.to_pandas()
-            if be_ids_filter:
-                df = df[df[be_ids_filter[0]].isin(be_ids_filter[1])]
-            yield df
 
 def drill_source_single_quotes(source):
     return "`%s`" % source

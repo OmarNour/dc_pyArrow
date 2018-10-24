@@ -8,7 +8,7 @@ import os
 
 if __name__ == '__main__':
     all_inputs = dc_methods.string_to_dict(sys.argv[1])
-    print('all_inputs', all_inputs)
+    # print('all_inputs', all_inputs)
     try:
         process_no = all_inputs['process_no']#int(sys.argv[1])
     except:

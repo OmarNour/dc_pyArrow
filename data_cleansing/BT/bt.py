@@ -1,6 +1,6 @@
 import sys
 from data_cleansing.dc_methods.dc_methods import get_all_data_from_source, sha1, single_quotes, data_to_list, \
-    get_chuncks_of_data_from_source, list_to_string, delete_dataset, save_to_parquet, assign_process_no, read_from_parquet, get_minimum_category,\
+    get_chuncks_of_data_from_source, list_to_string, delete_dataset, save_to_parquet, assign_process_no, get_minimum_category,\
     read_from_parquet_drill, get_be_core_table_names, rename_dataset, read_batches_from_parquet, bt_object_cols, is_dir_exists, bt_partition_cols, \
     count_folders_in_dir
 import data_cleansing.CONFIG.Config as DNXConfig
@@ -121,16 +121,16 @@ class StartBT:
 
         df_melt_result = pd.melt(df_result, id_vars='rowkey', var_name='AttributeName', value_name='AttributeValue')
         df_melt_result.columns = ['RowKey', 'AttributeName', 'AttributeValue']
-        df_melt_result['BTSID'] = 1
+        df_melt_result['BTSID'] = '1'
         df_melt_result['SourceID'] = source_id
-        df_melt_result['new_row'] = 1
+        df_melt_result['new_row'] = '1'
         df_melt_result['RefSID'] = None
         df_melt_result['HashValue'] = df_melt_result['AttributeValue'].apply(sha1)
         df_melt_result['InsertedBy'] = 'ETL'
         df_melt_result['ModifiedBy'] = None
         df_melt_result['ValidFrom'] = datetime.datetime.now().isoformat()
         df_melt_result['ValidTo'] = None
-        df_melt_result['IsCurrent'] = 1
+        df_melt_result['IsCurrent'] = '1'
         df_melt_result['bt_id'] = 0
         df_melt_result[self.dnx_config.process_no_column_name] = self.process_no
         # df_melt_result['ResetDQStage'] = 0
@@ -311,6 +311,7 @@ class StartBT:
                 if not df.empty:
                     bt_df = bt_df.append(df)
 
+        print('len____bt_df', len(bt_df.index))
         return bt_df
 
     def etl_be(self, source_id, bt_current_collection, bt_collection, source_collection, process_no, cpu_num_workers):
@@ -327,7 +328,7 @@ class StartBT:
                     bt_current_collection_old = base_bt_current_data_set + "_old"
                     if is_dir_exists(bt_current_collection_old):
                         filter_bt_ids = [['bt_id', bt_ids], ]
-                        # print('filter_bt_ids', bt_ids)
+                        print('len___filter_bt_ids', len(bt_ids))
                         bt_current_data_df = self.get_bt_current_data(bt_current_collection_old, self.bt_columns, filter_bt_ids)
                         self.load_data(source_data_df, bt_current_data_df, bt_data_set, bt_current_data_set)
 
