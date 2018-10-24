@@ -135,22 +135,6 @@ class StartDQ:
         suffix = "_old"
         result_data_set_tmp_old = self.switch_dataset(result_data_set_tmp, suffix)
 
-        # bt_current_data_df = self.get_bt_current_data(base_bt_current_data_set, columns, source_id, category_no, be_att_id)
-        # if not bt_current_data_df.empty:
-        #     if current_lvl_no > 1:
-        #         result_df = pd.DataFrame()
-        #         if is_dir_exists(result_data_set_tmp_old):
-        #             for row_keys_df in self.get_tmp_rowkeys(result_data_set_tmp_old):  # filter with level number too!
-        #                 bt_nxt_lvl_current_data_df = bt_current_data_df[bt_current_data_df['RowKey'].isin(row_keys_df)]
-        #
-        #                 if not bt_nxt_lvl_current_data_df.empty:
-        #                     result_lvl_df = self.validate_data_rule(bt_nxt_lvl_current_data_df, be_att_dr_id, rule_id, kwargs)
-        #                     result_df = result_df.append(result_lvl_df)
-        #
-        #     else:
-        #         result_df = self.validate_data_rule(bt_current_data_df, be_att_dr_id, rule_id, kwargs)
-        #     self.insert_result_df(result_df, g_result, result_data_set, next_pass, next_fail, result_data_set_tmp)
-
         for bt_current_data_df in self.get_bt_current_data(base_bt_current_data_set, columns, source_id, category_no, be_att_id):
             if not bt_current_data_df.empty:
                 if current_lvl_no > 1:
