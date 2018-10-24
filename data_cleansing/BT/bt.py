@@ -1,7 +1,8 @@
 import sys
 from data_cleansing.dc_methods.dc_methods import get_all_data_from_source, sha1, single_quotes, data_to_list, \
     get_chuncks_of_data_from_source, list_to_string, delete_dataset, save_to_parquet, assign_process_no, read_from_parquet, get_minimum_category,\
-    read_from_parquet_drill, get_be_core_table_names, rename_dataset, read_batches_from_parquet, bt_object_cols, is_dir_exists, bt_partition_cols
+    read_from_parquet_drill, get_be_core_table_names, rename_dataset, read_batches_from_parquet, bt_object_cols, is_dir_exists, bt_partition_cols, \
+    count_folders_in_dir
 import data_cleansing.CONFIG.Config as DNXConfig
 import datetime
 import pandas as pd
@@ -193,7 +194,8 @@ class StartBT:
         start_time = datetime.datetime.now()
         etl_occurred = -1
         current_df = p_current_df
-
+        process_no_new = self.dnx_config.process_no_column_name+"_new"
+        process_no_cbt = self.dnx_config.process_no_column_name + "_cbt"
         if not current_df.empty:
             source_df = source_df.set_index(['bt_id'])
             current_df = current_df.set_index(['bt_id'])
@@ -210,7 +212,7 @@ class StartBT:
                                        'AttributeValue_new', 'RefSID_new', 'HashValue_new', 'InsertedBy_new',
                                        'ModifiedBy_new', 'ValidFrom_new', 'ValidTo_new', 'IsCurrent_new',
                                        'ResetDQStage_new',
-                                       'new_row_new']]
+                                       'new_row_new', process_no_new]]
             new_data_df.columns = self.bt_columns
 
             merge_df = merge_df.loc[(merge_df['SourceID_cbt'].notnull()) &
@@ -226,20 +228,20 @@ class StartBT:
                                                   'AttributeValue_new', 'RefSID_new', 'HashValue_new', 'InsertedBy_new',
                                                   'ModifiedBy_new', 'ValidFrom_new', 'ValidTo_new', 'IsCurrent_new',
                                                   'ResetDQStage_new',
-                                                  'new_row_new']]
+                                                  'new_row_new', process_no_new]]
             bt_modified_df.columns = self.bt_columns
 
             bt_expired_data_df = bt_modified_expired[
                 ['bt_id', 'SourceID_cbt', 'RowKey_cbt', 'AttributeID_cbt', 'BTSID_cbt',
                  'AttributeValue_cbt', 'RefSID_cbt', 'HashValue_cbt', 'InsertedBy_cbt',
                  'ModifiedBy_cbt', 'ValidFrom_cbt', 'ValidTo_cbt', 'IsCurrent_cbt', 'ResetDQStage_cbt',
-                 'new_row_cbt']]
+                 'new_row_cbt', process_no_cbt]]
 
             bt_same_df = bt_same[
                 ['bt_id', 'SourceID_cbt', 'RowKey_cbt', 'AttributeID_cbt', 'BTSID_cbt',
                  'AttributeValue_cbt', 'RefSID_cbt', 'HashValue_cbt', 'InsertedBy_cbt',
                  'ModifiedBy_cbt', 'ValidFrom_cbt', 'ValidTo_cbt', 'IsCurrent_cbt', 'ResetDQStage_cbt',
-                 'new_row_cbt']]
+                 'new_row_cbt', process_no_cbt]]
 
             bt_expired_data_df.columns = self.bt_columns
             bt_same_df.columns = self.bt_columns
@@ -300,33 +302,37 @@ class StartBT:
             # manipulate = self.manipulate_etl_data(bt_current_collection, new_data_df)  # new data
             # self.parallel_data_manipulation.append(manipulate)
 
+    def get_bt_current_data(self, bt_dataset, columns, filter):
+        bt_df = pd.DataFrame()
+        folders_count = count_folders_in_dir(bt_dataset)
+        for f in range(folders_count):
+            complete_dataset = bt_dataset + "\\" + str(f)
+            for df in read_batches_from_parquet(complete_dataset, columns, int(self.parameters_dict['bt_batch_size']), self.cpu_num_workers, filter=filter):
+                if not df.empty:
+                    bt_df = bt_df.append(df)
+
+        return bt_df
+
     def etl_be(self, source_id, bt_current_collection, bt_collection, source_collection, process_no, cpu_num_workers):
         base_bt_current_data_set = self.dnx_db_path + bt_current_collection
         bt_data_set = self.dnx_db_path + bt_collection
         base_source_data_set = self.src_db_path + source_collection
         source_data_set = base_source_data_set + '\\' + self.dnx_config.process_no_column_name + '=' + process_no
-        # if int(self.parameters_dict['get_delta']) == 1:
-        #     current_data_set_old = bt_current_data_set + "_old"
-        #     try:
-        #         table_batches = [table for table in pq.read_table(current_data_set_old, columns=self.bt_columns).to_batches(int(self.parameters_dict['bt_batch_size']))]
-        #         print('getsizeof current_data_set_old', sys.getsizeof(table_batches))
-        #     except:
-        #         table_batches = []
-        # else:
-        #     table_batches = []
-        drill = PyDrill(host='localhost', port=8047)
+
         if is_dir_exists(source_data_set):
             for i, get_source_data in enumerate(self.get_source_data(source_id,source_data_set)):
                 bt_current_data_set = base_bt_current_data_set + "\\" + str(i)
                 source_data_df, bt_ids = get_source_data[0], get_source_data[1]
                 if int(self.parameters_dict['get_delta']) == 1:
-                    bt_current_collection_old = bt_current_collection + "_old"
-                    bt_current_data_df = read_from_parquet_drill(self.dnx_config.drill_parquet_db_root_path,
-                                                                 self.dnx_config.dnx_db_name, bt_current_collection_old, self.bt_columns,
-                                                                 be_ids_filter=bt_ids,
-                                                                 drill=drill)
-                    # bt_current_data_df = self.get_current_data(table_batches, bt_ids)
-                    self.load_data(source_data_df, bt_current_data_df, bt_data_set, bt_current_data_set)
+                    bt_current_collection_old = base_bt_current_data_set + "_old"
+                    if is_dir_exists(bt_current_collection_old):
+                        filter_bt_ids = [['bt_id', bt_ids], ]
+                        # print('filter_bt_ids', bt_ids)
+                        bt_current_data_df = self.get_bt_current_data(bt_current_collection_old, self.bt_columns, filter_bt_ids)
+                        self.load_data(source_data_df, bt_current_data_df, bt_data_set, bt_current_data_set)
+
+                    else:
+                        save_to_parquet(source_data_df, bt_current_data_set, bt_partition_cols, bt_object_cols)
                 else:
                     save_to_parquet(source_data_df, bt_current_data_set, bt_partition_cols, bt_object_cols)
 

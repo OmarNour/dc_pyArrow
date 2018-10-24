@@ -76,10 +76,7 @@ class StartDQ:
             yield df['RowKey']
 
     def get_bt_current_data(self, bt_dataset, columns, source_id, category_no, be_att_id):
-        # total_rows = 0
-
         folders_count = count_folders_in_dir(bt_dataset)
-
         for f in range(folders_count):
             complete_dataset = bt_dataset + "\\" + str(f) + "\\SourceID=" + str(source_id) + "\\ResetDQStage=" + str(category_no) + "\\AttributeID=" + str(be_att_id)
             if is_dir_exists(complete_dataset):
@@ -88,12 +85,6 @@ class StartDQ:
                     df['SourceID'] = source_id
                     df['ResetDQStage'] = category_no
                     df['AttributeID'] = be_att_id
-                    # df = df[
-                    #     (df['SourceID'] == filter['SourceID'])
-                    #     & (df['ResetDQStage'] == filter['ResetDQStage'])
-                    #     & (df['AttributeID'] == filter['AttributeID'])
-                    #     ]
-
                     yield df
             else:
                 yield pd.DataFrame()
