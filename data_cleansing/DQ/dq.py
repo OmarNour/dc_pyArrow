@@ -79,11 +79,12 @@ class StartDQ:
         empty_df = pd.DataFrame()
         folders_count = count_folders_in_dir(bt_dataset)
         for f in range(folders_count):
-            complete_dataset = bt_dataset + "\\" + str(f) + "\\SourceID=" + str(source_id) + "\\ResetDQStage=" + str(category_no) + "\\AttributeID=" + str(be_att_id)
+            complete_dataset = bt_dataset + "\\batch_no=" + str(f) + "\\SourceID=" + str(source_id) + "\\ResetDQStage=" + str(category_no) + "\\AttributeID=" + str(be_att_id)
             if is_dir_exists(complete_dataset):
                 for df in read_batches_from_parquet(complete_dataset, columns, int(self.parameters_dict['bt_batch_size']), self.cpu_num_workers):
                     # 'SourceID', 'ResetDQStage', 'AttributeID'
                     if not df.empty:
+                        df['batch_no'] = f
                         df['SourceID'] = source_id
                         df['ResetDQStage'] = category_no
                         df['AttributeID'] = be_att_id
@@ -244,8 +245,8 @@ class StartDQ:
                     self.rowkeys = self.rowkeys[self.rowkeys['is_issue'] == 1].set_index('RowKey')
                     for f in range(folders_count):
 
-                        current_category_dataset = bt_current_dataset + "\\" + str(f) + "\\SourceID=" + str(source_id) + "\\ResetDQStage=" + str(category_no) + "\\AttributeID=" + str(be_att_id)
-                        next_category_dataset = bt_current_dataset + "\\" + str(f) + "\\SourceID=" + str(source_id) + "\\ResetDQStage=" + str(next_cat) + "\\AttributeID=" + str(be_att_id)
+                        current_category_dataset = bt_current_dataset + "\\batch_no=" + str(f) + "\\SourceID=" + str(source_id) + "\\ResetDQStage=" + str(category_no) + "\\AttributeID=" + str(be_att_id)
+                        next_category_dataset = bt_current_dataset + "\\batch_no=" + str(f) + "\\SourceID=" + str(source_id) + "\\ResetDQStage=" + str(next_cat) + "\\AttributeID=" + str(be_att_id)
                         suffix = "_old"
                         # print(current_category_dataset)
                         if is_dir_exists(current_category_dataset):

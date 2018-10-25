@@ -2,7 +2,7 @@ import sys
 from data_cleansing.dc_methods.dc_methods import get_all_data_from_source, sha1, single_quotes, data_to_list, \
     get_chuncks_of_data_from_source, list_to_string, delete_dataset, save_to_parquet, assign_process_no, get_minimum_category, \
     folders_in_dir, get_be_core_table_names, rename_dataset, read_batches_from_parquet, bt_object_cols, is_dir_exists, bt_partition_cols, \
-    count_folders_in_dir
+    count_folders_in_dir, read_all_from_parquet
 import data_cleansing.CONFIG.Config as DNXConfig
 import datetime
 import pandas as pd
@@ -178,18 +178,6 @@ class StartBT:
         rename_dataset(current_data_set, current_data_set_old)
         return current_data_set_old
 
-    def get_current_data(self, table_batches, bt_ids):
-        current_data_df = pd.DataFrame(columns=self.bt_columns)
-        be_ids_filter = [self.bt_columns[0], bt_ids]
-        try:
-            for chunk_data in read_from_parquet(table_batches, be_ids_filter):
-                current_data_df = current_data_df.append(chunk_data)
-        except:
-            print("data set not found or unexpected error:", sys.exc_info()[0])
-
-        # print(current_data_df)
-        return current_data_df
-
     def get_delta(self, source_df, p_current_df):
         start_time = datetime.datetime.now()
         etl_occurred = -1
@@ -269,7 +257,7 @@ class StartBT:
               'time elapsed:', end_time - start_time)
         return bt_modified_df, bt_expired_data_df, new_data_df, etl_occurred, expired_ids, bt_same_df
 
-    def load_data(self, p_source_data, p_current_data, bt_data_set, bt_current_data_set):
+    def load_data(self, p_source_data, p_current_data, bt_data_set, bt_current_data_set, batch_no):
 
         get_delta_result = self.get_delta(p_source_data, p_current_data)
 
@@ -278,6 +266,7 @@ class StartBT:
 
 
         same_df = get_delta_result[5]
+        same_df['batch_no'] = batch_no
         save_to_parquet(same_df, bt_current_data_set, bt_partition_cols, bt_object_cols)
 
         if get_delta_result[3] in (0,2): #etl_occurred
@@ -285,9 +274,12 @@ class StartBT:
 
             modified_df = get_delta_result[0]
             expired_df = get_delta_result[1]
-            expired_ids = get_delta_result[4]
+            # expired_ids = get_delta_result[4]
 
+            modified_df['batch_no'] = batch_no
             save_to_parquet(modified_df, bt_current_data_set, bt_partition_cols, bt_object_cols)
+
+            expired_df['batch_no'] = batch_no
             save_to_parquet(expired_df, bt_data_set, bt_partition_cols, bt_object_cols)
             # print('expired_ids:', expired_ids)
             # manipulate = self.manipulate_etl_data(bt_collection, expired_df, expired_ids, bt_current_collection)  # expired data
@@ -298,6 +290,7 @@ class StartBT:
 
         if get_delta_result[3] in (1, 2):  # etl_occurred
             new_data_df = get_delta_result[2]
+            new_data_df['batch_no'] = batch_no
             save_to_parquet(new_data_df, bt_current_data_set, bt_partition_cols, bt_object_cols)
             # manipulate = self.manipulate_etl_data(bt_current_collection, new_data_df)  # new data
             # self.parallel_data_manipulation.append(manipulate)
@@ -305,15 +298,21 @@ class StartBT:
     def get_bt_current_data(self, bt_dataset, columns, filter):
         bt_df = pd.DataFrame()
 
-        # print('folders_in_dir', folders_in_dir(bt_dataset))
+        # bt_df = read_all_from_parquet(dataset_root_path=bt_dataset, columns=columns, filter=filter, nthreads=self.cpu_num_workers)
+
+        #
+        # for f in folders_in_dir(bt_dataset):
+        #     complete_dataset = bt_dataset + "\\" + f
+        #     df = read_all_from_parquet(dataset_root_path=complete_dataset, columns=columns, filter=filter, nthreads=self.cpu_num_workers)
+        #     if not df.empty:
+        #         bt_df = bt_df.append(df)
+
         for f in folders_in_dir(bt_dataset):
             complete_dataset = bt_dataset + "\\" + f
             for df in read_batches_from_parquet(complete_dataset, columns, int(self.parameters_dict['bt_batch_size']), self.cpu_num_workers, filter=filter):
-                # print('df_info', df['SourceID'])
                 if not df.empty:
                     bt_df = bt_df.append(df)
 
-        # print('len____bt_df', len(bt_df.index))
         return bt_df
 
     def etl_be(self, source_id, bt_current_collection, bt_collection, source_collection, process_no, cpu_num_workers):
@@ -323,20 +322,25 @@ class StartBT:
         source_data_set = base_source_data_set + '\\' + self.dnx_config.process_no_column_name + '=' + process_no
 
         if is_dir_exists(source_data_set):
-            for i, get_source_data in enumerate(self.get_source_data(source_id,source_data_set)):
-                bt_current_data_set = base_bt_current_data_set + "\\" + str(i)
+            for batch_no, get_source_data in enumerate(self.get_source_data(source_id,source_data_set)):
+                bt_current_data_set = base_bt_current_data_set
                 source_data_df, bt_ids = get_source_data[0], get_source_data[1]
+
                 if int(self.parameters_dict['get_delta']) == 1:
                     bt_current_collection_old = base_bt_current_data_set + "_old"
                     if is_dir_exists(bt_current_collection_old):
                         filter_bt_ids = [['bt_id', bt_ids], ]
                         # print('len___filter_bt_ids', len(bt_ids))
-                        bt_current_data_df = self.get_bt_current_data(bt_current_collection_old, self.bt_columns, filter_bt_ids)
-                        self.load_data(source_data_df, bt_current_data_df, bt_data_set, bt_current_data_set)
+                        bt_current_data_df = read_all_from_parquet(dataset_root_path=bt_current_collection_old,
+                                                                   columns=self.bt_columns, filter=filter_bt_ids, nthreads=self.cpu_num_workers)
+                        # bt_current_data_df = self.get_bt_current_data(bt_current_collection_old, self.bt_columns, filter_bt_ids)
+                        self.load_data(source_data_df, bt_current_data_df, bt_data_set, bt_current_data_set, batch_no)
 
                     else:
+                        source_data_df['batch_no'] = batch_no
                         save_to_parquet(source_data_df, bt_current_data_set, bt_partition_cols, bt_object_cols)
                 else:
+                    source_data_df['batch_no'] = batch_no
                     save_to_parquet(source_data_df, bt_current_data_set, bt_partition_cols, bt_object_cols)
 
     def get_be_ids(self):

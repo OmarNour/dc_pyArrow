@@ -7,6 +7,7 @@ import pyarrow.parquet as pq
 import pyarrow as pa
 from pydrill.client import PyDrill
 import os, sys
+import dask.dataframe as dd
 
 
 bt_object_cols = ['bt_id', 'SourceID', 'RowKey', 'AttributeValue', 'RefSID', 'HashValue',
@@ -16,7 +17,7 @@ bt_partioned_object_cols = ['bt_id', 'RowKey', 'AttributeValue', 'RefSID', 'Hash
                                'InsertedBy', 'ModifiedBy', 'ValidFrom', 'ValidTo', 'process_no']
 
 
-bt_partition_cols = ['SourceID', 'ResetDQStage', 'AttributeID']
+bt_partition_cols = ['batch_no', 'SourceID', 'ResetDQStage', 'AttributeID']
 
 def string_to_dict(sting_dict):
     if sting_dict:
@@ -100,16 +101,16 @@ def read_batches_from_parquet(dataset_root_path, columns, batch_size, nthreads, 
 
 
 def read_all_from_parquet(dataset_root_path, columns, nthreads, filter=None):
-    # print('dataset_root_path', dataset_root_path)
-    df = pq.read_table(dataset_root_path,
-                       columns=columns,
-                       use_threads=nthreads,
-                       use_pandas_metadata=True).to_pandas()
+    df = dd.read_parquet(path=dataset_root_path,columns=columns, engine='pyarrow')
+    # df = pq.read_table(dataset_root_path,
+    #                    columns=columns,
+    #                    use_threads=nthreads,
+    #                    use_pandas_metadata=True).to_pandas()
 
     if filter:
         for i in filter:
             df = df[df[i[0]].isin(i[1])]
-    return df
+    return df.compute()
 
 
 def drill_source_single_quotes(source):
