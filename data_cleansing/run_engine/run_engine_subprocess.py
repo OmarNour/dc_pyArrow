@@ -11,20 +11,19 @@ import math
 import data_cleansing.dc_methods.dc_methods as dc_methods
 
 
-def get_cpu_count_cpu_num_workers(config_db_url, parameters_collection, no_of_subprocess=None):
+def get_cpu_count_cpu_num_workers(config_db_url, parameters_collection, no_of_subprocess=None, force_no_of_subprocess=False):
     if no_of_subprocess is None:
         no_of_subprocess_query = "select value from " + parameters_collection + " where _id = 'no_of_subprocess' "
         no_of_subprocess = int(list_to_string(get_all_data_from_source(config_db_url, None, no_of_subprocess_query)['value'].values))
 
-
     server_cpu_count = multiprocessing.cpu_count()
 
-    if 0 < no_of_subprocess <= server_cpu_count:
+    if (0 < no_of_subprocess <= server_cpu_count) or force_no_of_subprocess:
         cpu_count = no_of_subprocess
     else:
         cpu_count = server_cpu_count
 
-    if cpu_count == server_cpu_count:
+    if cpu_count >= server_cpu_count:
         cpu_num_workers = 1
     else:
         cpu_num_workers = math.floor(server_cpu_count / cpu_count)
@@ -37,9 +36,12 @@ def get_cpu_count_cpu_num_workers(config_db_url, parameters_collection, no_of_su
     return cpu_count, cpu_num_workers
 
 
-def dc_multiprocessing(to_run, no_of_subprocess=None, inputs="", desc=None):
+def dc_multiprocessing(to_run, no_of_subprocess=None, inputs="", force_no_of_subprocess=False, desc=None):
 
-    result = get_cpu_count_cpu_num_workers(dnx_config.config_db_url, dnx_config.parameters_collection, no_of_subprocess=no_of_subprocess)
+    result = get_cpu_count_cpu_num_workers(dnx_config.config_db_url,
+                                           dnx_config.parameters_collection,
+                                           no_of_subprocess=no_of_subprocess,
+                                           force_no_of_subprocess=force_no_of_subprocess)
     cpu_count, cpu_num_workers = result[0], result[1]
     # to_run = '/run_engine.py'
     process_dict = {}
@@ -50,7 +52,7 @@ def dc_multiprocessing(to_run, no_of_subprocess=None, inputs="", desc=None):
 
         main_inputs = " process_no="+process_no+" cpu_num_workers="+str(cpu_num_workers)+" "
         all_inputs = main_inputs + inputs
-        process_dict[process_no] = subprocess.Popen(['python',
+        process_dict[process_no] = subprocess.Popen(['C:/Users/ON250000/PycharmProjects/dc_pyArrow/venv/Scripts/python',
                                                      to_run,
                                                      all_inputs])
 
@@ -81,7 +83,7 @@ if __name__ == '__main__':
 
     run_time = datetime.datetime.now()
 
-    result = get_cpu_count_cpu_num_workers(dnx_config.config_db_url, dnx_config.parameters_collection, no_of_subprocess=None)
+    result = get_cpu_count_cpu_num_workers(dnx_config.config_db_url, dnx_config.parameters_collection, no_of_subprocess=None, force_no_of_subprocess=True)
     bt_cpu_count, bt_cpu_num_workers = result[0], result[1]
 
     result = get_cpu_count_cpu_num_workers(dnx_config.config_db_url, dnx_config.parameters_collection, no_of_subprocess=1)
@@ -111,7 +113,7 @@ if __name__ == '__main__':
             bt_time = datetime.datetime.now()
             to_run = module_path + '/run_engine.py'
             inputs = "BT=" + str(BT)
-            dc_multiprocessing(to_run, no_of_subprocess=None, inputs=inputs, desc=None)
+            dc_multiprocessing(to_run, no_of_subprocess=None, inputs=inputs, force_no_of_subprocess=True, desc=None)
             # 65,010,912 bt current
             print('####################     bt_time:', datetime.datetime.now() - bt_time, '      ####################')
         if DQ == 1:

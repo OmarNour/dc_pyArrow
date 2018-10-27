@@ -6,18 +6,7 @@ from data_cleansing.dc_methods.dc_methods import get_all_data_from_source, sha1,
 import data_cleansing.CONFIG.Config as DNXConfig
 import datetime
 import pandas as pd
-import os
 
-import pyarrow.parquet as pq
-import pyarrow as pa
-from pydrill.client import PyDrill
-
-# from pyspark import SparkConf
-# from pyspark.context import SparkContext
-# from pyspark.sql import SQLContext
-# sc = SparkContext.getOrCreate(SparkConf())
-#
-# sqlContext = SQLContext(sc)
 
 class StartBT:
     def __init__(self):

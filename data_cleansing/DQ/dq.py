@@ -241,7 +241,7 @@ class StartDQ:
                 rowkeys = None
                 # print('partioned_dq_result_dataset', partioned_dq_result_dataset)
                 if is_dir_exists(partioned_dq_result_dataset):
-                    self.rowkeys = read_all_from_parquet(partioned_dq_result_dataset, ['RowKey', 'is_issue'], self.cpu_num_workers)
+                    self.rowkeys = read_all_from_parquet(partioned_dq_result_dataset, ['RowKey', 'is_issue'], self.cpu_num_workers).compute()
                     self.rowkeys = self.rowkeys[self.rowkeys['is_issue'] == 1].set_index('RowKey')
                     for f in range(folders_count):
 
