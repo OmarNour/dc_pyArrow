@@ -326,7 +326,7 @@ class StartBT:
 
                 if int(self.parameters_dict['get_delta']) == 1 and is_dir_exists(bt_current_collection_old):
                     # filter_bt_ids = [['bt_id', bt_ids], ]
-                    bt_current_data_df = bt_current_data_ddf[bt_current_data_ddf['bt_id'].isin(bt_ids)]
+                    bt_current_data_df = bt_current_data_ddf.loc[bt_current_data_ddf['bt_id'].isin(bt_ids)]
                     bt_current_data_df = bt_current_data_df.compute()
 
                     if not bt_current_data_df.empty:
