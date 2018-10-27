@@ -19,13 +19,16 @@ bt_partioned_object_cols = ['bt_id', 'RowKey', 'AttributeValue', 'RefSID', 'Hash
 
 bt_partition_cols = ['batch_no', 'SourceID', 'ResetDQStage', 'AttributeID']
 
+
 def string_to_dict(sting_dict):
     if sting_dict:
         # ex: Firstname="Sita" Lastname="Sharma" Age=22 Phone=1234567890
         return eval("dict(%s)" % ','.join(sting_dict.split()))
 
+
 def is_dir_exists(path):
     return os.path.exists(path)
+
 
 def get_files_in_dir(path):
     files = [name for name in os.listdir(path) if os.path.isfile(os.path.join(path, name))]
@@ -36,11 +39,14 @@ def count_files_in_dir(path):
     files = get_files_in_dir(path)
     return len(files)
 
+
 def folders_in_dir(path):
     return os.listdir(path)
 
+
 def count_folders_in_dir(path):
     return len(os.listdir(path))
+
 
 def rename_dataset(current_name, new_name):
     try:
@@ -62,6 +68,7 @@ def xstr(s):
     if s is None:
         return ''
     return str(s)
+
 
 def save_to_parquet(df, dataset_root_path, partition_cols=None, string_columns=None):
     start_time = datetime.datetime.now()
@@ -110,14 +117,16 @@ def read_all_from_parquet(dataset_root_path, columns, nthreads, filter=None):
     if filter:
         for i in filter:
             df = df[df[i[0]].isin(i[1])]
-    return df.compute()
+    return df
 
 
 def drill_source_single_quotes(source):
     return "`%s`" % source
 
+
 def single_quotes(string):
     return "'%s'" % string
+
 
 def source_connection(url, schema):
     if schema is None:
@@ -128,6 +137,7 @@ def source_connection(url, schema):
     # results_proxy = connection.execute(query)
     # print('results_proxy::', results_proxy)
     return connection
+
 
 def get_all_data_from_source(url, schema, query):
     # print('\n',url,schema)
@@ -145,6 +155,7 @@ def get_all_data_from_source(url, schema, query):
 
     return results_df
 
+
 def get_chuncks_of_data_from_source(url, schema, query, fetch_many):
     # print('url:', url)
     connection = source_connection(url, schema)
@@ -159,6 +170,7 @@ def get_chuncks_of_data_from_source(url, schema, query, fetch_many):
             results_keys = partial_results[0].keys()
             results_df = pd.DataFrame(partial_results, columns=results_keys)
             yield results_df
+
 
 def sha1(value):
     if type(value) != 'str':

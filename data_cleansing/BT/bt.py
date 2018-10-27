@@ -321,26 +321,31 @@ class StartBT:
         base_source_data_set = self.src_db_path + source_collection
         source_data_set = base_source_data_set + '\\' + self.dnx_config.process_no_column_name + '=' + process_no
 
+        bt_current_data_ddf = pd.DataFrame()
+        # bt_current_data_df = pd.DataFrame()
+        bt_current_collection_old = base_bt_current_data_set + "_old"
+        if int(self.parameters_dict['get_delta']) == 1:
+            if is_dir_exists(bt_current_collection_old):
+                bt_current_data_ddf = read_all_from_parquet(dataset_root_path=bt_current_collection_old,
+                                                           columns=self.bt_columns, filter=None, nthreads=self.cpu_num_workers)
+
         if is_dir_exists(source_data_set):
             for batch_no, get_source_data in enumerate(self.get_source_data(source_id,source_data_set)):
                 bt_current_data_set = base_bt_current_data_set
                 source_data_df, bt_ids = get_source_data[0], get_source_data[1]
+                source_data_df['batch_no'] = batch_no
 
-                if int(self.parameters_dict['get_delta']) == 1:
-                    bt_current_collection_old = base_bt_current_data_set + "_old"
-                    if is_dir_exists(bt_current_collection_old):
-                        filter_bt_ids = [['bt_id', bt_ids], ]
-                        # print('len___filter_bt_ids', len(bt_ids))
-                        bt_current_data_df = read_all_from_parquet(dataset_root_path=bt_current_collection_old,
-                                                                   columns=self.bt_columns, filter=filter_bt_ids, nthreads=self.cpu_num_workers)
-                        # bt_current_data_df = self.get_bt_current_data(bt_current_collection_old, self.bt_columns, filter_bt_ids)
+                if int(self.parameters_dict['get_delta']) == 1 and is_dir_exists(bt_current_collection_old):
+                    # filter_bt_ids = [['bt_id', bt_ids], ]
+                    bt_current_data_df = bt_current_data_ddf[bt_current_data_ddf['bt_id'].isin(bt_ids)]
+                    bt_current_data_df = bt_current_data_df.compute()
+
+                    if not bt_current_data_df.empty:
                         self.load_data(source_data_df, bt_current_data_df, bt_data_set, bt_current_data_set, batch_no)
-
                     else:
-                        source_data_df['batch_no'] = batch_no
                         save_to_parquet(source_data_df, bt_current_data_set, bt_partition_cols, bt_object_cols)
+
                 else:
-                    source_data_df['batch_no'] = batch_no
                     save_to_parquet(source_data_df, bt_current_data_set, bt_partition_cols, bt_object_cols)
 
     def get_be_ids(self):
