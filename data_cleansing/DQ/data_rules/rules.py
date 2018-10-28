@@ -48,7 +48,7 @@ def rule3(att_value, RowKey, kwargs):
 
 
 
-def rule100(att_value, RowKey, kwargs):
+def rule100_old(att_value, RowKey, kwargs):
 
     citizens_cards_src = kwargs['citizens_cards_src']
     citizen_src = kwargs['citizen_src']
@@ -65,7 +65,7 @@ def rule100(att_value, RowKey, kwargs):
     return 0
 
 
-def rule100_old(att_value, RowKey, kwargs):
+def rule100(att_value, RowKey, kwargs):
 
     citizens_cards_src = kwargs['citizens_cards_src']
     citizen_src = kwargs['citizen_src']
@@ -103,8 +103,8 @@ def rule100_old(att_value, RowKey, kwargs):
     # count_cards_src_100_a520_eq_1_a510_eq_v420_data = 0
     # print('att_410', att_410_value)
     # print('att_420', att_420_value)
-    # print('count_citizen_src_110_a630_eq_1_a620_eq_v410_data', count_citizen_src_110_a630_eq_1_a620_eq_v410_data)
-    # print('count_cards_src_110_a520_eq_1_a510_eq_v420_data', count_cards_src_100_a520_eq_1_a510_eq_v420_data)
+    print('count_citizen_src_110_a630_eq_1_a620_eq_v410_data', count_citizen_src_110_a630_eq_1_a620_eq_v410_data)
+    print('count_cards_src_110_a520_eq_1_a510_eq_v420_data', count_cards_src_100_a520_eq_1_a510_eq_v420_data)
 
     if count_citizen_src_110_a630_eq_1_a620_eq_v410_data >= 2 and count_cards_src_100_a520_eq_1_a510_eq_v420_data >= 2:
         return 1

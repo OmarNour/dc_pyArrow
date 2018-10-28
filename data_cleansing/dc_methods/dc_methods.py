@@ -10,15 +10,24 @@ import os, sys
 import dask.dataframe as dd
 
 
-bt_object_cols = ['bt_id', 'SourceID', 'RowKey', 'AttributeValue', 'RefSID', 'HashValue',
+bt_columns = ['bt_id', 'SourceID', 'RowKey', 'AttributeID', 'BTSID', 'AttributeValue', 'RefSID',
+                           'HashValue', 'InsertedBy', 'ModifiedBy', 'ValidFrom', 'ValidTo',
+                           'IsCurrent', 'ResetDQStage', 'new_row', 'process_no']
+
+bt_object_cols = ['bt_id', 'RowKey', 'AttributeValue', 'RefSID', 'HashValue',
                                'InsertedBy', 'ModifiedBy', 'ValidFrom', 'ValidTo', 'process_no']
 
 bt_partioned_object_cols = ['bt_id', 'RowKey', 'AttributeValue', 'RefSID', 'HashValue',
                                'InsertedBy', 'ModifiedBy', 'ValidFrom', 'ValidTo', 'process_no']
 
 
-bt_partition_cols = ['batch_no', 'SourceID', 'ResetDQStage', 'AttributeID']
+# bt_partition_cols = ['batch_no', 'SourceID', 'ResetDQStage', 'AttributeID']
+bt_partition_cols = ['SourceID', 'AttributeID', 'ResetDQStage', ]
 
+# result_partition_cols = ['SourceID', 'ResetDQStage', 'AttributeID', 'be_att_dr_id', 'data_rule_id']
+result_partition_cols = ['SourceID', 'AttributeID', 'ResetDQStage', 'be_att_dr_id', 'data_rule_id']
+
+result_object_cols = ['SourceID', 'RowKey', 'AttributeValue', 'data_value_pattern']
 
 def string_to_dict(sting_dict):
     if sting_dict:
@@ -98,17 +107,32 @@ def read_batches_from_parquet(dataset_root_path, columns, batch_size, nthreads, 
     for table in (table for table in pq.read_table(dataset_root_path,
                                                    columns=columns,
                                                    use_threads=nthreads,
-                                                   use_pandas_metadata=True).to_batches(batch_size)):
+                                                   use_pandas_metadata=False).to_batches(batch_size)):
         df = table.to_pandas()
 
         if filter:
             for i in filter:
                 df = df[df[i[0]].isin(i[1])]
-        yield df
 
+        if not df.empty:
+            yield df
+
+
+def read_all_from_parquet2(dataset_root_path, columns, nthreads, filter=None):
+    try:
+        return pq.ParquetDataset(path_or_paths=dataset_root_path,filters=filter).read().to_pandas()[columns]
+    except:
+        return pd.DataFrame
 
 def read_all_from_parquet(dataset_root_path, columns, nthreads, filter=None):
+
     df = dd.read_parquet(path=dataset_root_path,columns=columns, engine='pyarrow')
+
+    # print('len_df', len(df.index))
+    # print('col_df', df.columns)
+    # print('filterfilter', filter)
+
+    # print('df.columns', df.columns)
     # df = pq.read_table(dataset_root_path,
     #                    columns=columns,
     #                    use_threads=nthreads,
@@ -294,63 +318,57 @@ def get_be_core_table_names(config_db, org_business_entities, be_id):
 
 
 def get_attribute_value_by_rowkey(bt_dataset, filters=None):
-    folders_count = count_folders_in_dir(bt_dataset)
-    for f in range(folders_count):
-        bt_src = bt_dataset + "\\" + str(f)
+    values = read_all_from_parquet(bt_dataset, ['RowKey', 'AttributeID', 'AttributeValue'], 4, filter=filters).compute()
+    if not values.empty:
+        return values
+    else:
+        return pd.DataFrame()
 
-        # if be_att_id:
-        #     filter_be_att_id = ['AttributeID', [be_att_id]]
-        #     filters = [filter_be_att_id]
-        #
-        # if RowKey:
-        #     filter_rowkey = ['RowKey', [RowKey]]
-        #     filters.append(filter_rowkey)
-        #
-        # if AttributeValue:
-        #     filter_AttributeValue = ['AttributeValue', [AttributeValue]]
-        #     filters.append(filter_AttributeValue)
+    # folders_count = count_folders_in_dir(bt_dataset)
+    # for f in range(folders_count):
+    #     bt_src = bt_dataset + "\\" + str(f)
+    #
+    #     # if be_att_id:
+    #     #     filter_be_att_id = ['AttributeID', [be_att_id]]
+    #     #     filters = [filter_be_att_id]
+    #     #
+    #     # if RowKey:
+    #     #     filter_rowkey = ['RowKey', [RowKey]]
+    #     #     filters.append(filter_rowkey)
+    #     #
+    #     # if AttributeValue:
+    #     #     filter_AttributeValue = ['AttributeValue', [AttributeValue]]
+    #     #     filters.append(filter_AttributeValue)
+    #
+    #     # print('filtersfilters', filters)
+    #     values = read_all_from_parquet(bt_src, ['RowKey', 'AttributeValue'], 4, filter=filters)
 
-        # print('filtersfilters', filters)
-        values = read_all_from_parquet(bt_src, ['RowKey', 'AttributeValue'], 4, filter=filters)
+        # if not values.empty:
+        #     return values
+        # else:
+        #     return pd.DataFrame()
+#
+if __name__ == '__main__':
+    save_bt_current_data_set = "C:\\dc\\parquet_db\DNX\\test_bt_current_4383_10"
 
-        if not values.empty:
-            return values
-        else:
-            return pd.DataFrame()
-#
-# if __name__ == '__main__':
-#     print(drill_source_single_quotes('/x/s/x/s'))
-#     # dataset = 'C:\dc\parquet_db\DNX\BT_current_4383_10\\'
-#     # col = ['SourceID', 'RowKey', 'AttributeID', 'AttributeValue', 'ResetDQStage']
-#     dataset = 'C:\dc\parquet_db\Result\Result_4383_10\SourceID=100_10_2\ResetDQStage=1\AttributeID=700\\'
-#     print('number of files is', count_files_in_dir("C:\dc\parquet_db\Result\Result_4383_10\SourceID=100_10_2\ResetDQStage=1\AttributeID=700\\be_att_dr_id=222\data_rule_id=2"))
-#     col = None
-#     total_rows = 0
-#     folders_count = count_folders_in_dir(dataset)
-#     for f in range(folders_count):
-#         complete_dataset = dataset
-#         # complete_dataset = complete_dataset + str(f)
-#         # print(complete_dataset)
-#         for i in read_batches_from_parquet(complete_dataset, col, 200000, 4):
-#             # print(type(i))
-#             print(i.columns)
-#             # print(i[['AttributeID', 'ResetDQStage']])
-#             # print(i['be_att_dr_id'])
-#             # i['be_att_dr_id'] = 2
-#             # print(i['be_att_dr_id'])
-#             # print(i['ResetDQStage'])
-#             # xx = i.reset_index()
-#             # x = xx[xx['ResetDQStage']==1]
-#             total_rows += len(i.index)
-#     print('total rows:', total_rows)
-#
-# #     import data_cleansing.CONFIG.Config as config
-# #     config_db_url = config.Config.config_db_url
-#
-# #     x = get_parameter_values(config_db_url)
-# #
-# #     x_dict = x.to_dict('records')
-# #
-# #     parameters_values_dict = {}
-# #     for i in x_dict:
-# #         parameters_values_dict[i['_id']] = i['value']
+
+    x = [[('AttributeID', '=', 700), ],
+         [('AttributeID', '=', 800), ]]
+
+    list_of_att = [100,200,300,400,500,600,700,800,900,1000,2143]
+
+    pa_filter = []
+    for i in range(len(list_of_att)):
+        tuplef = ('AttributeID', '=', list_of_att[i])
+        list_tuplef = [tuplef]
+        pa_filter.append(list_tuplef)
+
+    print(pa_filter)
+
+    pa_filter = [[('bt_id', '=', '9001520e2b30f1ae17d128db9187b36b9bdb022c6a84d44')],]
+    # pa_filter = [[('AttributeID', '=', 520)], ]
+    df = read_all_from_parquet2(dataset_root_path="C:\\dc\\parquet_db\\DNX\\bt_current_9898_100",
+                                columns=['bt_id','AttributeID'],
+                                nthreads=4, filter=pa_filter)
+    print(df)
+
