@@ -124,20 +124,21 @@ def read_all_from_parquet2(dataset_root_path, columns, nthreads, filter=None):
     except:
         return pd.DataFrame
 
+
 def read_all_from_parquet(dataset_root_path, columns, nthreads, filter=None):
+    df = pq.read_table(dataset_root_path,
+                       columns=columns,
+                       use_threads=nthreads,
+                       use_pandas_metadata=True).to_pandas()
 
+    if filter:
+        for i in filter:
+            df = df[df[i[0]].isin(i[1])]
+    return df
+
+
+def read_all_from_parquet_delayed(dataset_root_path, columns, nthreads, filter=None):
     df = dd.read_parquet(path=dataset_root_path,columns=columns, engine='pyarrow')
-
-    # print('len_df', len(df.index))
-    # print('col_df', df.columns)
-    # print('filterfilter', filter)
-
-    # print('df.columns', df.columns)
-    # df = pq.read_table(dataset_root_path,
-    #                    columns=columns,
-    #                    use_threads=nthreads,
-    #                    use_pandas_metadata=True).to_pandas()
-
     if filter:
         for i in filter:
             df = df[df[i[0]].isin(i[1])]
@@ -318,7 +319,7 @@ def get_be_core_table_names(config_db, org_business_entities, be_id):
 
 
 def get_attribute_value_by_rowkey(bt_dataset, filters=None):
-    values = read_all_from_parquet(bt_dataset, ['RowKey', 'AttributeID', 'AttributeValue'], 4, filter=filters).compute()
+    values = read_all_from_parquet_delayed(bt_dataset, ['RowKey', 'AttributeID', 'AttributeValue'], 4, filter=filters).compute()
     if not values.empty:
         return values
     else:

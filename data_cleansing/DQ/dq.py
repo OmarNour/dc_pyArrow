@@ -2,7 +2,7 @@ import data_cleansing.CONFIG.Config as DNXConfig
 import pandas as pd
 from data_cleansing.dc_methods.dc_methods import get_all_data_from_source, get_be_core_table_names, read_from_parquet_drill, \
     count_files_in_dir, get_files_in_dir, count_folders_in_dir, read_batches_from_parquet, save_to_parquet, delete_dataset, rename_dataset, single_quotes, bt_object_cols, \
-    read_all_from_parquet, read_all_from_parquet2, is_dir_exists, bt_partioned_object_cols, result_object_cols, result_partition_cols,bt_columns
+    read_all_from_parquet_delayed, read_all_from_parquet, is_dir_exists, bt_partioned_object_cols, result_object_cols, result_partition_cols,bt_columns
 import data_cleansing.DQ.data_rules.rules as dr
 # from pydrill.client import PyDrill
 # import swifter
@@ -77,20 +77,21 @@ class StartDQ:
             yield df['RowKey']
 
     def get_bt_current_data(self, bt_dataset, columns, source_id, category_no, be_att_id):
-        complete_dataset = bt_dataset + "\\SourceID=" + str(source_id) + "\\AttributeID=" + str(be_att_id) + "\\ResetDQStage=" + str(category_no)
+        complete_dataset = bt_dataset + \
+                           "\\SourceID=" + str(source_id) +\
+                           "\\AttributeID=" + str(be_att_id) +\
+                           "\\ResetDQStage=" + str(category_no)
         # print('complete_dataset', complete_dataset)
         if is_dir_exists(complete_dataset):
-            bt_current_df = read_all_from_parquet(dataset_root_path=complete_dataset,
-                                  columns=bt_partioned_object_cols,
-                                  nthreads=self.cpu_num_workers,
-                                  filter=None).compute()
+            for file_name in get_files_in_dir(complete_dataset):
+                pa_file_path = complete_dataset+"\\"+file_name
+                bt_current_df = read_all_from_parquet(dataset_root_path=pa_file_path,
+                                                      columns=bt_partioned_object_cols,
+                                                      nthreads=self.cpu_num_workers,
+                                                      filter=None)
 
-            # bt_current_df['SourceID'] = source_id
-            # bt_current_df['ResetDQStage'] = category_no
-            # bt_current_df['AttributeID'] = be_att_id
-        else:
-            bt_current_df = pd.DataFrame()
-        return bt_current_df
+                yield bt_current_df
+
 
     def insert_result_df(self, result_df, g_result, result_data_set, next_pass, next_fail, result_data_set_tmp, source_id, category_no, be_att_id):
         # print('insert_result_df started')
@@ -132,22 +133,22 @@ class StartDQ:
         suffix = "_old"
         result_data_set_tmp_old = self.switch_dataset(result_data_set_tmp, suffix)
 
-        bt_current_data_df = self.get_bt_current_data(base_bt_current_data_set, columns, source_id, category_no, be_att_id)
-        # print('len_bt_current_data_df', len(bt_current_data_df.index))
-        if not bt_current_data_df.empty:
-            if current_lvl_no > 1:
-                result_df = pd.DataFrame()
-                if is_dir_exists(result_data_set_tmp_old):
-                    for row_keys_df in self.get_tmp_rowkeys(result_data_set_tmp_old):  # filter with level number too!
-                        bt_nxt_lvl_current_data_df = bt_current_data_df[bt_current_data_df['RowKey'].isin(row_keys_df)]
+        for bt_current_data_df in self.get_bt_current_data(base_bt_current_data_set, columns, source_id, category_no, be_att_id):
+            # print('len_bt_current_data_df', len(bt_current_data_df.index))
+            if not bt_current_data_df.empty:
+                if current_lvl_no > 1:
+                    result_df = pd.DataFrame()
+                    if is_dir_exists(result_data_set_tmp_old):
+                        for row_keys_df in self.get_tmp_rowkeys(result_data_set_tmp_old):  # filter with level number too!
+                            bt_nxt_lvl_current_data_df = bt_current_data_df[bt_current_data_df['RowKey'].isin(row_keys_df)]
 
-                        if not bt_nxt_lvl_current_data_df.empty:
-                            result_lvl_df = self.validate_data_rule(bt_nxt_lvl_current_data_df, be_att_dr_id, rule_id, kwargs)
-                            result_df = result_df.append(result_lvl_df)
+                            if not bt_nxt_lvl_current_data_df.empty:
+                                result_lvl_df = self.validate_data_rule(bt_nxt_lvl_current_data_df, be_att_dr_id, rule_id, kwargs)
+                                result_df = result_df.append(result_lvl_df)
 
-            else:
-                result_df = self.validate_data_rule(bt_current_data_df, be_att_dr_id, rule_id, kwargs)
-            self.insert_result_df(result_df, g_result, result_data_set, next_pass, next_fail, result_data_set_tmp, source_id, category_no, be_att_id)
+                else:
+                    result_df = self.validate_data_rule(bt_current_data_df, be_att_dr_id, rule_id, kwargs)
+                self.insert_result_df(result_df, g_result, result_data_set, next_pass, next_fail, result_data_set_tmp, source_id, category_no, be_att_id)
 
     def execute_data_rules(self, data_rule, category_no):
         # print('execute_data_rules started')
@@ -218,7 +219,7 @@ class StartDQ:
 
             if is_dir_exists(partioned_dq_result_dataset):
 
-                rowkeys = read_all_from_parquet(partioned_dq_result_dataset, ['RowKey'], self.cpu_num_workers).compute()
+                rowkeys = read_all_from_parquet_delayed(partioned_dq_result_dataset, ['RowKey'], self.cpu_num_workers).compute()
                 rowkeys = rowkeys.set_index('RowKey')
                 current_category_dataset = bt_current_dataset + "\\SourceID=" + str(source_id) + "\\AttributeID=" + str(be_att_id) + "\\ResetDQStage=" + str(category_no)
                 next_category_dataset = bt_current_dataset + "\\SourceID=" + str(source_id) + "\\AttributeID=" + str(be_att_id) + "\\ResetDQStage=" + str(next_cat)
@@ -239,9 +240,6 @@ class StartDQ:
 
 
     def start_dq(self, process_no, cpu_num_workers):
-        pd.set_option('mode.chained_assignment', None)
-        self.dnx_config = DNXConfig.Config()
-        self.parameters_dict = self.dnx_config.get_parameters_values()
         self.cpu_num_workers = cpu_num_workers
         self.process_no = process_no
         self.rowkeys = pd.DataFrame()

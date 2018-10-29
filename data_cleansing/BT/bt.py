@@ -2,11 +2,11 @@ import sys
 from data_cleansing.dc_methods.dc_methods import get_all_data_from_source, sha1, single_quotes, data_to_list, \
     get_chuncks_of_data_from_source, list_to_string, delete_dataset, save_to_parquet, assign_process_no, get_minimum_category, \
     folders_in_dir, get_be_core_table_names, rename_dataset, read_batches_from_parquet, bt_object_cols, is_dir_exists, bt_partition_cols, \
-    count_folders_in_dir, read_all_from_parquet, bt_columns
+    count_folders_in_dir, read_all_from_parquet_delayed, bt_columns
 import data_cleansing.CONFIG.Config as DNXConfig
 import datetime
 import pandas as pd
-
+from dask import compute, delayed
 
 class StartBT:
     def __init__(self):
@@ -88,23 +88,12 @@ class StartBT:
                 # f_col = self.get_source_column_name(source_id, be_id)
                 source_data_set = self.src_db_path + source_collection
                 delete_dataset(source_data_set)
-
-                count_rows = 0
-                start_load_time = datetime.datetime.now()
                 for file_seq, chunk_data in enumerate(get_chuncks_of_data_from_source(source_url, source_schema, source_query, int(self.parameters_dict['source_batch_size']))):
-                    # print(chunk_data.info())
-                    chunk_data = self.prepare_source_df(chunk_data, row_key_column_name, self.dnx_config.process_no_column_name, no_of_cores)
-                    # chunk_data = chunk_data.rename(index=str, columns=f_col)
-                    current_rows = len(chunk_data.index)
-                    count_rows += current_rows
+                    self.prepare_and_save_src_data(chunk_data, row_key_column_name, no_of_cores, source_data_set)
 
-                    # object_columns = chunk_data.select_dtypes(include='object')
-                    # for i in object_columns.columns:
-                    #     chunk_data[i] = chunk_data[i].apply(str)
-
-                    save_to_parquet(chunk_data, source_data_set, partition_cols=[self.dnx_config.process_no_column_name])
-
-                # print("{:,}".format(count_rows), "record loaded into ", source_data_set, "in", datetime.datetime.now() - start_load_time)
+    def prepare_and_save_src_data(self, chunk_data, row_key_column_name, no_of_cores, source_data_set):
+        chunk_data = self.prepare_source_df(chunk_data, row_key_column_name, self.dnx_config.process_no_column_name, no_of_cores)
+        save_to_parquet(chunk_data, source_data_set, partition_cols=[self.dnx_config.process_no_column_name])
 
     def melt_query_result(self,df_result,source_id):
 
