@@ -2,7 +2,7 @@ import sys
 from data_cleansing.dc_methods.dc_methods import get_all_data_from_source, sha1, single_quotes, data_to_list, \
     get_chuncks_of_data_from_source, list_to_string, delete_dataset, save_to_parquet, assign_process_no, get_minimum_category, \
     folders_in_dir, get_be_core_table_names, rename_dataset, read_batches_from_parquet, bt_object_cols, is_dir_exists, bt_partition_cols, \
-    count_folders_in_dir, read_all_from_parquet
+    count_folders_in_dir, read_all_from_parquet, bt_columns
 import data_cleansing.CONFIG.Config as DNXConfig
 import datetime
 import pandas as pd
@@ -19,9 +19,9 @@ class StartBT:
         self.src_db_path = parquet_db_root_path + self.dnx_config.src_db_name + '\\'
         self.dnx_db_path = parquet_db_root_path + self.dnx_config.dnx_db_name + '\\'
         self.result_db_path = parquet_db_root_path + self.dnx_config.result_db_name + '\\'
-        self.bt_columns = ['bt_id', 'SourceID', 'RowKey', 'AttributeID', 'BTSID', 'AttributeValue', 'RefSID',
-                           'HashValue', 'InsertedBy', 'ModifiedBy', 'ValidFrom', 'ValidTo',
-                           'IsCurrent', 'ResetDQStage', 'new_row', self.dnx_config.process_no_column_name]
+        # self.bt_columns = ['bt_id', 'SourceID', 'RowKey', 'AttributeID', 'BTSID', 'AttributeValue', 'RefSID',
+        #                    'HashValue', 'InsertedBy', 'ModifiedBy', 'ValidFrom', 'ValidTo',
+        #                    'IsCurrent', 'ResetDQStage', 'new_row', self.dnx_config.process_no_column_name]
 
         # self.bt_partition_cols = ['SourceID', 'ResetDQStage', 'AttributeID']
         # self.bt_partition_cols =None
@@ -142,7 +142,7 @@ class StartBT:
         # print(melt_df.columns)
         new_rows_df = melt_df.merge(att_query_df, left_on='AttributeName',
                                     right_on='AttributeName',
-                                    how='left')[self.bt_columns]
+                                    how='left')[bt_columns]
 
         new_rows_df = new_rows_df[new_rows_df['AttributeID'].notnull()]
         new_rows_df['AttributeID'] = new_rows_df.AttributeID.astype('int64')
@@ -150,7 +150,7 @@ class StartBT:
         new_rows_df['ResetDQStage'] = new_rows_df.ResetDQStage.astype('int64')
 
         bt_ids = data_to_list(new_rows_df['bt_id'])
-        return new_rows_df[self.bt_columns], bt_ids
+        return new_rows_df[bt_columns], bt_ids
 
     def get_source_data(self, source_id, source_data_set):
         att_query_df = self.get_att_ids_df(source_id)
@@ -190,7 +190,7 @@ class StartBT:
                                        'ModifiedBy_new', 'ValidFrom_new', 'ValidTo_new', 'IsCurrent_new',
                                        'ResetDQStage_new',
                                        'new_row_new', process_no_new]]
-            new_data_df.columns = self.bt_columns
+            new_data_df.columns = bt_columns
 
             merge_df = merge_df.loc[(merge_df['SourceID_cbt'].notnull()) &
                                     (merge_df['HashValue_new'].notnull())]
@@ -206,7 +206,7 @@ class StartBT:
                                                   'ModifiedBy_new', 'ValidFrom_new', 'ValidTo_new', 'IsCurrent_new',
                                                   'ResetDQStage_new',
                                                   'new_row_new', process_no_new]]
-            bt_modified_df.columns = self.bt_columns
+            bt_modified_df.columns = bt_columns
 
             bt_expired_data_df = bt_modified_expired[
                 ['bt_id', 'SourceID_cbt', 'RowKey_cbt', 'AttributeID_cbt', 'BTSID_cbt',
@@ -220,8 +220,8 @@ class StartBT:
                  'ModifiedBy_cbt', 'ValidFrom_cbt', 'ValidTo_cbt', 'IsCurrent_cbt', 'ResetDQStage_cbt',
                  'new_row_cbt', process_no_cbt]]
 
-            bt_expired_data_df.columns = self.bt_columns
-            bt_same_df.columns = self.bt_columns
+            bt_expired_data_df.columns = bt_columns
+            bt_same_df.columns = bt_columns
 
             # expired_ids = bt_modified_expired[['_id']]
             expired_ids = bt_modified_expired['bt_id'].values
@@ -314,7 +314,7 @@ class StartBT:
 
                 if int(self.parameters_dict['get_delta']) == 1 and is_dir_exists(bt_current_collection_old):
                     filter_bt_ids = [['bt_id', bt_ids], ]
-                    bt_current_data_df = self.get_bt_current_data(bt_current_collection_old,self.bt_columns,filter_bt_ids)
+                    bt_current_data_df = self.get_bt_current_data(bt_current_collection_old, bt_columns,filter_bt_ids)
                     # bt_current_data_df = bt_current_data_ddf.loc[bt_current_data_ddf['bt_id'].isin(bt_ids)]
                     # bt_current_data_df = bt_current_data_df.compute()
 

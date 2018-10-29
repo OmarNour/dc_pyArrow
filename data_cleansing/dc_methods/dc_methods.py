@@ -25,7 +25,7 @@ bt_partioned_object_cols = ['bt_id', 'RowKey', 'AttributeValue', 'RefSID', 'Hash
 bt_partition_cols = ['SourceID', 'AttributeID', 'ResetDQStage', ]
 
 # result_partition_cols = ['SourceID', 'ResetDQStage', 'AttributeID', 'be_att_dr_id', 'data_rule_id']
-result_partition_cols = ['SourceID', 'AttributeID', 'ResetDQStage', 'be_att_dr_id', 'data_rule_id']
+result_partition_cols = ['SourceID', 'AttributeID', 'ResetDQStage', 'is_issue', 'be_att_dr_id', 'data_rule_id']
 
 result_object_cols = ['SourceID', 'RowKey', 'AttributeValue', 'data_value_pattern']
 
