@@ -1,12 +1,12 @@
 import sys
 from data_cleansing.dc_methods.dc_methods import get_all_data_from_source, sha1, single_quotes, data_to_list, \
     get_chuncks_of_data_from_source, list_to_string, delete_dataset, save_to_parquet, assign_process_no, get_minimum_category, \
-    folders_in_dir, get_be_core_table_names, rename_dataset, read_batches_from_parquet, bt_object_cols, is_dir_exists, bt_partition_cols, \
-    count_folders_in_dir, read_all_from_parquet_delayed, bt_columns
+    get_be_core_table_names, rename_dataset, read_batches_from_parquet, bt_object_cols, is_dir_exists, bt_partition_cols, \
+    bt_columns
 import data_cleansing.CONFIG.Config as DNXConfig
 import datetime
 import pandas as pd
-from dask import compute, delayed
+# from dask import compute, delayed
 
 class StartBT:
     def __init__(self):
@@ -14,17 +14,10 @@ class StartBT:
         pd.set_option('mode.chained_assignment', None)
         self.dnx_config = DNXConfig.Config()
         self.parameters_dict = self.dnx_config.get_parameters_values()
-        # parquet_db_root_path = os.path.dirname(sys.modules['data_cleansing.BT'].__file__)+'\\'+ self.dnx_config.parquet_db_root_path
         parquet_db_root_path = self.dnx_config.parquet_db_root_path
         self.src_db_path = parquet_db_root_path + self.dnx_config.src_db_name + '\\'
         self.dnx_db_path = parquet_db_root_path + self.dnx_config.dnx_db_name + '\\'
         self.result_db_path = parquet_db_root_path + self.dnx_config.result_db_name + '\\'
-        # self.bt_columns = ['bt_id', 'SourceID', 'RowKey', 'AttributeID', 'BTSID', 'AttributeValue', 'RefSID',
-        #                    'HashValue', 'InsertedBy', 'ModifiedBy', 'ValidFrom', 'ValidTo',
-        #                    'IsCurrent', 'ResetDQStage', 'new_row', self.dnx_config.process_no_column_name]
-
-        # self.bt_partition_cols = ['SourceID', 'ResetDQStage', 'AttributeID']
-        # self.bt_partition_cols =None
 
     def get_source_connection_credentials(self, source_id):
         be_data_sources_query = 'select query, org_connection_id from ' + self.dnx_config.be_data_sources_collection + ' where _id = ' + single_quotes(source_id)
