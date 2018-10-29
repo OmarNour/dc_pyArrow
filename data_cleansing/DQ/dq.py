@@ -85,19 +85,21 @@ class StartDQ:
                                   nthreads=self.cpu_num_workers,
                                   filter=None).compute()
 
-            bt_current_df['SourceID'] = source_id
-            bt_current_df['ResetDQStage'] = category_no
-            bt_current_df['AttributeID'] = be_att_id
+            # bt_current_df['SourceID'] = source_id
+            # bt_current_df['ResetDQStage'] = category_no
+            # bt_current_df['AttributeID'] = be_att_id
         else:
             bt_current_df = pd.DataFrame()
         return bt_current_df
 
-    def insert_result_df(self, result_df, g_result, result_data_set, next_pass, next_fail, result_data_set_tmp):
+    def insert_result_df(self, result_df, g_result, result_data_set, next_pass, next_fail, result_data_set_tmp, source_id, category_no, be_att_id):
         # print('insert_result_df started')
         if not result_df.empty:
             if g_result == 1:
                 # print('result_data_set.columns', result_df.columns)
-
+                result_df['SourceID'] = source_id
+                result_df['ResetDQStage'] = category_no
+                result_df['AttributeID'] = be_att_id
                 save_to_parquet(result_df, result_data_set, partition_cols=result_partition_cols, string_columns=result_object_cols)
             else:
                 if next_pass == 1:
@@ -145,7 +147,7 @@ class StartDQ:
 
             else:
                 result_df = self.validate_data_rule(bt_current_data_df, be_att_dr_id, rule_id, kwargs)
-            self.insert_result_df(result_df, g_result, result_data_set, next_pass, next_fail, result_data_set_tmp)
+            self.insert_result_df(result_df, g_result, result_data_set, next_pass, next_fail, result_data_set_tmp, source_id, category_no, be_att_id)
 
     def execute_data_rules(self, data_rule, category_no):
         # print('execute_data_rules started')
@@ -199,18 +201,6 @@ class StartDQ:
         be_id = get_all_data_from_source(self.dnx_config.config_db_url, None, be_id_query)['be_id'].values[0]
 
         return be_id
-
-    def is_cell_passed(self, RowKey):
-        return False if RowKey in self.rowkeys.index else True
-
-    def check_cells_for_upgrade(self, r_SourceID, r_RowKey, r_AttributeID, r_ResetDQStage, next_cat, p_source_id, p_be_att_id):
-        return_next_cat = r_ResetDQStage
-
-        if self.is_cell_passed(r_RowKey):
-            return_next_cat = next_cat
-
-        # print(r_RowKey, r_AttributeID, 'return_next_cat', return_next_cat)
-        return return_next_cat
 
     def upgrade_category(self, source_id, category_no, be_att_id):
         be_id = self.get_be_id_by_be_att_id(be_att_id)
@@ -266,7 +256,6 @@ class StartDQ:
             parallel_execute_data_rules = []
             for j, data_rule in source_category_rules.iterrows():
                 # open multi processes here
-
                 # self.execute_data_rules(data_rule, category_no)
                 delayed_execute_data_rules = delayed(self.execute_data_rules)(data_rule, category_no)
                 parallel_execute_data_rules.append(delayed_execute_data_rules)
