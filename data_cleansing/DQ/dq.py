@@ -1,8 +1,8 @@
 import data_cleansing.CONFIG.Config as DNXConfig
 import pandas as pd
 from data_cleansing.dc_methods.dc_methods import get_all_data_from_source, get_be_core_table_names, \
-    get_files_in_dir, read_batches_from_parquet, save_to_parquet, delete_dataset, rename_dataset, single_quotes, \
-    read_all_from_parquet_delayed, read_all_from_parquet, is_dir_exists, bt_partioned_object_cols, result_object_cols, result_partition_cols
+    get_files_in_dir, read_batches_from_parquet, save_to_parquet, delete_dataset, rename_dataset, single_quotes, result_cols, \
+    read_all_from_parquet_delayed, read_all_from_parquet, is_dir_exists, bt_partioned_object_cols, result_object_cols, result_partition_cols, p_result_partition_cols
 import data_cleansing.DQ.data_rules.rules as dr
 # from pydrill.client import PyDrill
 # import swifter
@@ -92,16 +92,21 @@ class StartDQ:
 
                 yield bt_current_df
 
-
     def insert_result_df(self, result_df, g_result, result_data_set, next_pass, next_fail, result_data_set_tmp, source_id, category_no, be_att_id):
-        # print('insert_result_df started')
         if not result_df.empty:
             if g_result == 1:
-                # print('result_data_set.columns', result_df.columns)
                 result_df['SourceID'] = source_id
                 result_df['ResetDQStage'] = category_no
                 result_df['AttributeID'] = be_att_id
-                save_to_parquet(result_df, result_data_set, partition_cols=result_partition_cols, string_columns=result_object_cols)
+                # 'p_SourceID', 'p_AttributeID', 'p_ResetDQStage', 'p_is_issue', 'p_be_att_dr_id', 'p_data_rule_id'
+                result_df['p_SourceID'] = source_id
+                result_df['p_ResetDQStage'] = category_no
+                result_df['p_AttributeID'] = be_att_id
+                result_df['p_is_issue'] = result_df['is_issue']
+                result_df['p_be_att_dr_id'] = result_df['be_att_dr_id']
+                result_df['p_data_rule_id'] = result_df['data_rule_id']
+
+                save_to_parquet(result_df[result_cols], result_data_set, partition_cols=result_partition_cols, string_columns=result_object_cols)
             else:
                 if next_pass == 1:
                     next_df = result_df[result_df['is_issue'] == 0][['RowKey']]
@@ -112,7 +117,6 @@ class StartDQ:
                 else:
                     next_df = pd.DataFrame()
                 if not next_df.empty:
-                    # next_df = next_df.rename(index=str, columns={"RowKey": "_id"})
                     save_to_parquet(next_df, result_data_set_tmp)
 
     def switch_dataset(self, dataset, suffix):
@@ -213,7 +217,7 @@ class StartDQ:
                                           "\\SourceID=" + str(source_id) + \
                                           "\\AttributeID=" + str(be_att_id) + \
                                           "\\ResetDQStage=" + str(category_no) + \
-                                          "\\is_issue=1"
+                                          "\\is_issue=0"
 
             next_cat = self.get_next_be_att_id_category(source_id, be_att_id, category_no)
 
@@ -230,7 +234,7 @@ class StartDQ:
                     bt_dataset_old = self.switch_dataset(current_category_dataset, suffix)
 
                     for bt_current in read_batches_from_parquet(bt_dataset_old, None, int(self.parameters_dict['bt_batch_size']), self.cpu_num_workers):
-                        bt_current_passed = bt_current[~bt_current['RowKey'].isin(rowkeys.index)]
+                        bt_current_passed = bt_current[bt_current['RowKey'].isin(rowkeys.index)]
                         bt_current_failed = bt_current[~bt_current['bt_id'].isin(bt_current_passed['bt_id'])]
 
                         save_to_parquet(bt_current_failed, current_category_dataset, partition_cols=None, string_columns=bt_partioned_object_cols)

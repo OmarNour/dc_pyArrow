@@ -47,7 +47,6 @@ def rule3(att_value, RowKey, kwargs):
         return 0
 
 
-
 def rule100_old(att_value, RowKey, kwargs):
 
     citizens_cards_src = kwargs['citizens_cards_src']

@@ -231,13 +231,7 @@ class StartBT:
     def load_data(self, p_source_data, p_current_data, bt_data_set, bt_current_data_set):
 
         get_delta_result = self.get_delta(p_source_data, p_current_data)
-
-        # bt_current_data_set = self.dnx_db_path + bt_current_collection
-        # bt_data_set = self.dnx_db_path + bt_collection
-
-
         same_df = get_delta_result[5]
-        # same_df['batch_no'] = batch_no
         save_to_parquet(same_df, bt_current_data_set, bt_partition_cols, bt_object_cols)
 
         if get_delta_result[3] in (0,2): #etl_occurred
@@ -252,19 +246,10 @@ class StartBT:
 
             # expired_df['batch_no'] = batch_no
             save_to_parquet(expired_df, bt_data_set, bt_partition_cols, bt_object_cols)
-            # print('expired_ids:', expired_ids)
-            # manipulate = self.manipulate_etl_data(bt_collection, expired_df, expired_ids, bt_current_collection)  # expired data
-            # self.parallel_data_manipulation.append(manipulate)
-            #
-            # manipulate = self.manipulate_etl_data(bt_current_collection, modified_df)  # modified data
-            # self.parallel_data_manipulation.append(manipulate)
 
         if get_delta_result[3] in (1, 2):  # etl_occurred
             new_data_df = get_delta_result[2]
-            # new_data_df['batch_no'] = batch_no
             save_to_parquet(new_data_df, bt_current_data_set, bt_partition_cols, bt_object_cols)
-            # manipulate = self.manipulate_etl_data(bt_current_collection, new_data_df)  # new data
-            # self.parallel_data_manipulation.append(manipulate)
 
     def get_bt_current_data(self, bt_dataset, columns, filter):
         bt_df = pd.DataFrame()
