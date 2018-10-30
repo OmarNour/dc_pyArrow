@@ -51,19 +51,19 @@ def rule3(att_value, RowKey, kwargs):
     # print('rule3', len(att_value), operator, value_length)
 
     if (operator == "=") and len(att_value) == value_length:
-        return 1
-    elif (operator == ">") and len(att_value) > value_length:
-        return 1
-    elif (operator == "<") and len(att_value) < value_length:
-        return 1
-    elif (operator == "<=") and len(att_value) <= value_length:
-        return 1
-    elif (operator == ">=") and len(att_value) >= value_length:
-        return 1
-    elif (operator == "<>") and len(att_value) != value_length:
-        return 1
-    else:
         return 0
+    elif (operator == ">") and len(att_value) > value_length:
+        return 0
+    elif (operator == "<") and len(att_value) < value_length:
+        return 0
+    elif (operator == "<=") and len(att_value) <= value_length:
+        return 0
+    elif (operator == ">=") and len(att_value) >= value_length:
+        return 0
+    elif (operator == "<>") and len(att_value) != value_length:
+        return 0
+    else:
+        return 1
 
 
 def rule4(att_value, RowKey, kwargs):
