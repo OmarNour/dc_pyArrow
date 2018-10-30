@@ -120,7 +120,7 @@ def read_batches_from_parquet(dataset_root_path, columns, batch_size, nthreads, 
             yield df
 
 
-def read_all_from_parquet2(dataset_root_path, columns, nthreads, filter=None):
+def read_partioned_data_from_parquet(dataset_root_path, columns, filter=None):
     try:
         return pq.ParquetDataset(path_or_paths=dataset_root_path,filters=filter).read().to_pandas()[columns]
     except:

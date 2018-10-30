@@ -29,10 +29,10 @@ def get_cpu_count_cpu_num_workers(config_db_url, parameters_collection, no_of_su
     else:
         cpu_num_workers = math.floor(server_cpu_count / cpu_count)
 
-    print('no_of_subprocess', no_of_subprocess)
-    print('server_cpu_count', server_cpu_count)
-    print('cpu_count', cpu_count)
-    print('cpu_num_workers', cpu_num_workers)
+    # print('no_of_subprocess', no_of_subprocess)
+    # print('server_cpu_count', server_cpu_count)
+    # print('cpu_count', cpu_count)
+    # print('cpu_num_workers', cpu_num_workers)
 
     return cpu_count, cpu_num_workers
 

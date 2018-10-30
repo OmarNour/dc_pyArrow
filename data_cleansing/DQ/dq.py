@@ -2,7 +2,7 @@ import data_cleansing.CONFIG.Config as DNXConfig
 import pandas as pd
 from data_cleansing.dc_methods.dc_methods import get_all_data_from_source, get_be_core_table_names, \
     get_files_in_dir, read_batches_from_parquet, save_to_parquet, delete_dataset, rename_dataset, single_quotes, result_cols, \
-    read_all_from_parquet_delayed, read_all_from_parquet, is_dir_exists, bt_partioned_object_cols, result_object_cols, result_partition_cols, p_result_partition_cols
+    read_all_from_parquet_delayed, read_all_from_parquet, is_dir_exists, bt_partioned_object_cols, result_object_cols, result_partition_cols, read_partioned_data_from_parquet
 import data_cleansing.DQ.data_rules.rules as dr
 # from pydrill.client import PyDrill
 # import swifter
@@ -130,10 +130,11 @@ class StartDQ:
     def execute_lvl_data_rules(self, base_bt_current_data_set, result_data_set, result_data_set_tmp, source_id, be_att_dr_id, category_no,
                                be_att_id, rule_id, g_result, current_lvl_no, next_pass, next_fail, kwargs):
 
+        print("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
         print('source_id:', source_id, 'be_att_dr_id:', be_att_dr_id, 'category_no:', category_no)
         print('be_att_id:', be_att_id, 'rule_id:', rule_id, 'g_result:', g_result, 'current_lvl_no:', current_lvl_no,
               'next_pass:', next_pass, 'next_fail:', next_fail)
-
+        print("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
         columns = ['RowKey', 'AttributeValue']
         result_data_set_tmp = result_data_set_tmp+str(be_att_dr_id)
 
@@ -226,8 +227,14 @@ class StartDQ:
             next_cat = self.get_next_be_att_id_category(source_id, be_att_id, category_no)
 
             if is_dir_exists(partioned_dq_result_dataset):
-
+                # rowkeys = read_all_from_parquet(partioned_dq_result_dataset, ['RowKey'], self.cpu_num_workers)
                 rowkeys = read_all_from_parquet_delayed(partioned_dq_result_dataset, ['RowKey'], self.cpu_num_workers).compute()
+                # filter = [[('SourceID','=', source_id),
+                #            ('AttributeID','=', be_att_id),
+                #            ('ResetDQStage','=', category_no),
+                #            ('is_issue','=', 0)]]
+                # rowkeys = read_partioned_data_from_parquet(partioned_dq_result_dataset, ['RowKey'], filter=filter)
+
                 rowkeys = rowkeys.set_index('RowKey')
                 current_category_dataset = bt_current_dataset + "\\SourceID=" + str(source_id) + "\\AttributeID=" + str(be_att_id) + "\\ResetDQStage=" + str(category_no)
                 next_category_dataset = bt_current_dataset + "\\SourceID=" + str(source_id) + "\\AttributeID=" + str(be_att_id) + "\\ResetDQStage=" + str(next_cat)

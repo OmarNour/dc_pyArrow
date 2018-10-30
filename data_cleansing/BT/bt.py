@@ -6,7 +6,7 @@ from data_cleansing.dc_methods.dc_methods import get_all_data_from_source, sha1,
 import data_cleansing.CONFIG.Config as DNXConfig
 import datetime
 import pandas as pd
-# from dask import compute, delayed
+from dask import compute, delayed
 
 class StartBT:
     def __init__(self):
@@ -321,7 +321,7 @@ class StartBT:
         be_ids = self.get_be_ids()
         self.process_no = process_no
         self.cpu_num_workers = cpu_num_workers
-
+        parallel_etl_be = []
         for i, be_id in be_ids.iterrows():
             be_id = be_id['be_id']
 
@@ -334,8 +334,10 @@ class StartBT:
             for i, source_id in be_source_ids.iterrows():
                 source_id = source_id['_id']
                 # print(source_id, bt_current_collection, bt_collection, source_collection)
-                self.etl_be(source_id, bt_current_collection, bt_collection, source_collection, process_no, cpu_num_workers)
-
+                delayed_etl_be = delayed(self.etl_be)(source_id, bt_current_collection, bt_collection, source_collection, process_no, cpu_num_workers)
+                parallel_etl_be.append(delayed_etl_be)
+        print('execute parallel ETLs')
+        compute(*parallel_etl_be, num_workers=cpu_num_workers)
         print('BT elapsed time:', datetime.datetime.now() - start_time)
         # return (mapping_be_source_ids)
 
