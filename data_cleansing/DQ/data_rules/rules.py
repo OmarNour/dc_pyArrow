@@ -1,6 +1,7 @@
 import data_cleansing.dc_methods.dc_methods as dc_methods
 import data_cleansing.CONFIG.Config as DNXConfig
 from pydrill.client import PyDrill
+import re
 
 def rules_orchestrate(rule_id, att_value, RowKey, kwargs):
     # print('rules_orchestrate', att_value)
@@ -14,6 +15,8 @@ def rules_orchestrate(rule_id, att_value, RowKey, kwargs):
         return rule2(att_value, RowKey, kwargs)
     elif rule_id == 3:
         return rule3(att_value, RowKey, kwargs)
+    elif rule_id == 4:
+        return rule4(att_value, RowKey, kwargs)
     elif rule_id == 100:
         return rule100(att_value, RowKey, kwargs)
 
@@ -61,6 +64,16 @@ def rule3(att_value, RowKey, kwargs):
         return 1
     else:
         return 0
+
+
+def rule4(att_value, RowKey, kwargs):
+    pattern_value = kwargs['pattern_value']
+    pattern = re.compile(pattern_value)
+    # print('bool(pattern.match(att_value))', bool(pattern.match(att_value)))
+    if bool(pattern.match(att_value)):
+        return 0
+    else:
+        return 1
 
 
 def rule100_old(att_value, RowKey, kwargs):

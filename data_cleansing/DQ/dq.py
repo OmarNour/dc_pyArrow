@@ -130,8 +130,10 @@ class StartDQ:
     def execute_lvl_data_rules(self, base_bt_current_data_set, result_data_set, result_data_set_tmp, source_id, be_att_dr_id, category_no,
                                be_att_id, rule_id, g_result, current_lvl_no, next_pass, next_fail, kwargs):
 
-        print(source_id, be_att_dr_id, category_no,
-              be_att_id, rule_id, g_result, current_lvl_no, next_pass, next_fail)
+        print('source_id:', source_id, 'be_att_dr_id:', be_att_dr_id, 'category_no:', category_no)
+        print('be_att_id:', be_att_id, 'rule_id:', rule_id, 'g_result:', g_result, 'current_lvl_no:', current_lvl_no,
+              'next_pass:', next_pass, 'next_fail:', next_fail)
+
         columns = ['RowKey', 'AttributeValue']
         result_data_set_tmp = result_data_set_tmp+str(be_att_dr_id)
 
