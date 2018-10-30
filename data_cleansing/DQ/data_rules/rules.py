@@ -40,8 +40,24 @@ def rule2(att_value, RowKey, kwargs):
 
 
 def rule3(att_value, RowKey, kwargs):
-    # print('rule3', att_value)
-    if len(att_value) <= 4:
+    value_length = kwargs['value_length']
+    operator = kwargs['operator']
+
+    # print('value_length', value_length)
+    # print('operator', operator)
+    # print('rule3', len(att_value), operator, value_length)
+
+    if (operator == "=") and len(att_value) == value_length:
+        return 1
+    elif (operator == ">") and len(att_value) > value_length:
+        return 1
+    elif (operator == "<") and len(att_value) < value_length:
+        return 1
+    elif (operator == "<=") and len(att_value) <= value_length:
+        return 1
+    elif (operator == ">=") and len(att_value) >= value_length:
+        return 1
+    elif (operator == "<>") and len(att_value) != value_length:
         return 1
     else:
         return 0

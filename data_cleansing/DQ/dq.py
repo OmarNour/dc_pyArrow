@@ -6,7 +6,8 @@ from data_cleansing.dc_methods.dc_methods import get_all_data_from_source, get_b
 import data_cleansing.DQ.data_rules.rules as dr
 # from pydrill.client import PyDrill
 # import swifter
-from dask import compute, delayed
+from dask import compute, delayed, dataframe as dd
+
 
 
 class StartDQ:
@@ -181,6 +182,7 @@ class StartDQ:
             # print(core_tables)
             base_bt_current_data_set = self.dnx_db_path + bt_current_collection
             result_data_set = self.result_db_path + dq_result_collection
+            self.all_result_data_set.append(result_data_set) if result_data_set not in self.all_result_data_set else None
             result_data_set_tmp = result_data_set + "_tmp"
             if is_dir_exists(base_bt_current_data_set):
                 self.execute_lvl_data_rules(base_bt_current_data_set, result_data_set, result_data_set_tmp, source_id, be_att_dr_id, category_no,
@@ -242,11 +244,26 @@ class StartDQ:
 
                     delete_dataset(bt_dataset_old)
 
+    def show_results(self):
+        print("**********************************************************************")
+
+        for result_path in self.all_result_data_set:
+            # result_path = "C:\\dc\\parquet_db\\Result\\result_4383_10"
+            df1 = dd.read_parquet(path=result_path, engine='pyarrow')[['p_SourceID', 'p_AttributeID', 'p_ResetDQStage', 'p_be_att_dr_id', 'p_data_rule_id', 'p_is_issue', 'bt_id']]
+            df2 = df1.reset_index()
+            df2.columns = ['indx', 'SourceID', 'AttributeID', 'Category_no', 'be_att_dr_id', 'rule_id', 'is_issue', 'bt_id']
+            df2 = df2.groupby(['SourceID', 'AttributeID', 'Category_no', 'be_att_dr_id', 'rule_id', 'is_issue']).agg({'bt_id': ['count']})
+            df2.columns = ["cells#"]
+
+            print(df2.compute())
+            print("----------------------------------------------------------------------")
+        print("**********************************************************************")
 
     def start_dq(self, process_no, cpu_num_workers):
         self.cpu_num_workers = cpu_num_workers
         self.process_no = process_no
         self.rowkeys = pd.DataFrame()
+        self.all_result_data_set = []
 
         source_categories = self.get_source_categories()
 
@@ -257,8 +274,6 @@ class StartDQ:
             source_category_rules = self.get_source_category_rules(source_id, category_no)
             parallel_execute_data_rules = []
             for j, data_rule in source_category_rules.iterrows():
-                # open multi processes here
-                # self.execute_data_rules(data_rule, category_no)
                 delayed_execute_data_rules = delayed(self.execute_data_rules)(data_rule, category_no)
                 parallel_execute_data_rules.append(delayed_execute_data_rules)
             print('start compute parallel_execute_data_rules!')
@@ -272,3 +287,5 @@ class StartDQ:
                 parallel_execute_upgrade_category.append(delayed_upgrade)
             print('start compute parallel_execute_upgrade_category!')
             compute(*parallel_execute_upgrade_category, num_workers=self.cpu_num_workers)
+
+        self.show_results()

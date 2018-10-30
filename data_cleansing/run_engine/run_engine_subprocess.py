@@ -61,7 +61,7 @@ def dc_multiprocessing(to_run, no_of_subprocess=None, inputs="", desc=None):
                 try:
                     process_list.remove(p_no)
                     count_finished_processes += 1
-                    print('-----------------------------------------------------------')
+                    # print('-----------------------------------------------------------')
                     print('Process no.', p_no, 'finished, total finished', count_finished_processes, 'out of', cpu_count)
 
                 except:
@@ -69,7 +69,13 @@ def dc_multiprocessing(to_run, no_of_subprocess=None, inputs="", desc=None):
 
 
 if __name__ == '__main__':
-    # build_config_db()
+    initial_time = datetime.datetime.now()
+    load_source_data_end_time = initial_time
+    load_source_data_time = initial_time
+    bt_end_time = initial_time
+    bt_time = initial_time
+    dq_end_time = initial_time
+    dq_time = initial_time
 
     dq_process_dict = {}
 
@@ -104,8 +110,8 @@ if __name__ == '__main__':
                 to_run = module_path + '/load_source_data/load_source_data.py'
                 inputs = "cpu_count=" + str(bt_cpu_count)
                 dc_multiprocessing(to_run, no_of_subprocess=1, inputs=inputs, desc=None)
+                load_source_data_end_time = datetime.datetime.now()
 
-                print('####################     load_source_data_time:', datetime.datetime.now() - load_source_data_time, '      ####################')
             # config_database[dnx_config.multiprocessing_collection].drop()
 
             bt_time = datetime.datetime.now()
@@ -113,7 +119,8 @@ if __name__ == '__main__':
             inputs = "BT=" + str(BT)
             dc_multiprocessing(to_run, no_of_subprocess=None, inputs=inputs, desc=None)
             # 65,010,912 bt current
-            print('####################     bt_time:', datetime.datetime.now() - bt_time, '      ####################')
+            bt_end_time = datetime.datetime.now()
+
         if DQ == 1:
             parquet_db_root_path = dnx_config.parquet_db_root_path
             result_db_path = parquet_db_root_path + dnx_config.result_db_name + '\\'
@@ -123,8 +130,12 @@ if __name__ == '__main__':
             to_run = module_path + '/run_engine.py'
             inputs = "DQ=" + str(DQ)
             dc_multiprocessing(to_run, no_of_subprocess=1, inputs=inputs, desc=None)
-            print('####################     dq_time:', datetime.datetime.now() - dq_time, '      ####################')
+            dq_end_time = datetime.datetime.now()
 
-        # config_database[dnx_config.run_engine_collection].update_one({'_id': i['_id']}, {'$set': {'end_time': datetime.datetime.now()}})
-        print('####################     total time:', datetime.datetime.now() - run_time, '      ####################')
+
+        print('####################     Load soruce data time:', load_source_data_end_time - load_source_data_time, '      ####################')
+        print('####################                   BT time:', bt_end_time - bt_time, '      ####################')
+        print('####################                   DQ time:', dq_end_time - dq_time, '      ####################')
+        print('####################                Total time:', datetime.datetime.now() - run_time, '      ####################')
+
 
