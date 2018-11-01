@@ -15,6 +15,7 @@ class Config:
 
     config_db_name = 'DNX_config'
     src_db_name = 'Source_data'
+    mdm_db_name = 'MDM_data'
     dnx_db_name = 'DNX'
     result_db_name = 'Result'
 

@@ -321,7 +321,8 @@ def get_be_core_table_names(config_db, org_business_entities, be_id):
 
 
 def get_attribute_value_by_rowkey(bt_dataset, filters=None):
-    values = read_all_from_parquet_delayed(bt_dataset, ['RowKey', 'AttributeID', 'AttributeValue'], 4, filter=filters).compute()
+    # values = read_all_from_parquet_delayed(bt_dataset, ['RowKey', 'AttributeValue'], 4, filter=filters).compute()
+    values = read_all_from_parquet(bt_dataset, ['RowKey', 'AttributeValue'], 4, filter=filters)
     if not values.empty:
         return values
     else:
