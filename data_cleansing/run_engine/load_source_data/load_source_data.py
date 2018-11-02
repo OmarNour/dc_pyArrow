@@ -10,5 +10,7 @@ if __name__ == '__main__':
         # cpu_count = int(sys.argv[1])
     except:
         cpu_count = 1
+        cpu_num_workers = 1
+
     start_bt = StartBT()
     start_bt.load_source_data(cpu_count, cpu_num_workers)

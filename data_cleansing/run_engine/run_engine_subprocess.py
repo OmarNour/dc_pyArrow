@@ -109,6 +109,7 @@ if __name__ == '__main__':
                 load_source_data_time = datetime.datetime.now()
                 to_run = module_path + '/load_source_data/load_source_data.py'
                 inputs = "cpu_count=" + str(bt_cpu_count)
+                print('start loading data from sources ...')
                 dc_multiprocessing(to_run, no_of_subprocess=1, inputs=inputs, desc=None)
                 load_source_data_end_time = datetime.datetime.now()
 
