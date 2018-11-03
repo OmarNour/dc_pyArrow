@@ -36,7 +36,6 @@ class StartBT:
     def prepare_source_df(self, source_df, row_key_column_name, process_no_column_name, no_of_cores):
         new_source_df = source_df
         new_source_df[row_key_column_name] = new_source_df[row_key_column_name].apply(sha1)
-        # new_source_df['srcID'] = new_source_df[row_key_column_name]
         new_source_df[process_no_column_name] = new_source_df.apply(lambda x: assign_process_no(no_of_cores, x.name), axis=1)
         return new_source_df
 
@@ -44,7 +43,7 @@ class StartBT:
         columns_query = "select query_column_name,  'F'||be_att_id F_be_att_id" \
                        " from " + self.dnx_config.be_data_sources_mapping_collection + \
                        " where be_data_source_id = " + single_quotes(source_id) + \
-                       " and be_att_id in (select _id from " + self.dnx_config.be_attributes_collection + " where be_id = " + single_quotes(be_id) + " )"
+                       " and be_att_id in (select _id from " + self.dnx_config.be_attributes_collection + " where be_id = " + single_quotes(be_id) + " and att_id != 0)"
         columns_data = get_all_data_from_source(self.dnx_config.config_db_url, None, columns_query)
         # print(columns_query)
         f_col = {}
@@ -92,9 +91,11 @@ class StartBT:
     def prepare_and_save_src_data(self, source_id, chunk_data, row_key_column_name, f_col, no_of_cores, source_data_set, src_f_data_set):
         chunk_data['SourceID'] = source_id
         chunk_data = self.prepare_source_df(chunk_data, row_key_column_name, self.dnx_config.process_no_column_name, no_of_cores)
+        # print('chunk_data', chunk_data['rowkey'])
         save_to_parquet(chunk_data, source_data_set, partition_cols=['SourceID', self.dnx_config.process_no_column_name])
 
         chunk_data = chunk_data.rename(index=str, columns=f_col).drop(['process_no'], axis=1)
+        # print('chunk_data2', chunk_data['rowkey'])
         save_to_parquet(chunk_data, src_f_data_set, partition_cols=['SourceID'])
 
     def melt_query_result(self,df_result,source_id):

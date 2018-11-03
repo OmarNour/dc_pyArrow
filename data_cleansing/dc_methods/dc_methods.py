@@ -139,8 +139,8 @@ def read_all_from_parquet(dataset, columns, use_threads, filter=None):
     return df
 
 
-def read_all_from_parquet_delayed(dataset_root_path, columns, nthreads, filter=None):
-    df = dd.read_parquet(path=dataset_root_path,columns=columns, engine='pyarrow')
+def read_all_from_parquet_delayed(dataset, columns=None, nthreads=4, filter=None):
+    df = dd.read_parquet(path=dataset, columns=columns, engine='pyarrow')
     if filter:
         for i in filter:
             df = df[df[i[0]].isin(i[1])]

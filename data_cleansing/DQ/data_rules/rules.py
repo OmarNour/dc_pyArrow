@@ -3,22 +3,20 @@ import data_cleansing.CONFIG.Config as DNXConfig
 from pydrill.client import PyDrill
 import re
 
-def rules_orchestrate(rule_id, att_value, RowKey, kwargs):
-    # print('rules_orchestrate', att_value)
-    if kwargs:
-        # ex: Firstname="Sita" Lastname="Sharma" Age=22 Phone=1234567890
-        kwargs = eval("dict(%s)" % ','.join(kwargs.split()))
+def rules_orchestrate(rule_id, att_value, RowKey, f_cols, kwargs):
 
+    # print('rules_orchestrate', att_value)
     if rule_id == 1:
         return rule1(att_value, RowKey, kwargs)
     elif rule_id == 2:
         return rule2(att_value, RowKey, kwargs)
     elif rule_id == 3:
+
         return rule3(att_value, RowKey, kwargs)
     elif rule_id == 4:
         return rule4(att_value, RowKey, kwargs)
     elif rule_id == 100:
-        return rule100(att_value, RowKey, kwargs)
+        return rule100(att_value, RowKey, f_cols, kwargs)
 
 
 def rule1(att_value, RowKey, kwargs):
@@ -93,7 +91,7 @@ def rule100_old(att_value, RowKey, kwargs):
     return 0
 
 
-def rule100(att_value, RowKey, kwargs):
+def rule100(att_value, RowKey, f_cols, kwargs):
 
     citizens_cards_src = kwargs['citizens_cards_src']
     citizen_src = kwargs['citizen_src']
@@ -105,42 +103,44 @@ def rule100(att_value, RowKey, kwargs):
     #
     att_410_rowkeys_filter = [['AttributeValue', [att_410_value]]]
     # att_410_rowkeys_filter = None
-    citizens_cards_src_att410 = citizens_cards_src + "\\AttributeID=410"
-    att_410_rowkeys_data = dc_methods.get_attribute_value_by_rowkey(citizens_cards_src_att410, att_410_rowkeys_filter)
-    if not att_410_rowkeys_data.empty:
-        att_410_rowkeys_data = att_410_rowkeys_data['RowKey'].values.tolist()
+    # citizens_cards_src_att410 = citizens_cards_src + "\\AttributeID=410"
+    # att_410_rowkeys_data = dc_methods.get_attribute_value_by_rowkey(citizens_cards_src_att410, att_410_rowkeys_filter)
+    # if not att_410_rowkeys_data.empty:
+        # att_410_rowkeys_data = att_410_rowkeys_data['RowKey'].values.tolist()
 
-    att_420_filter = [['RowKey', att_410_rowkeys_data]]
-    citizens_cards_src_att420 = citizens_cards_src + "\\AttributeID=420"
-    att_420_value = dc_methods.get_attribute_value_by_rowkey(citizens_cards_src_att420, att_420_filter)['AttributeValue'].values.tolist()
+    # att_420_filter = [['RowKey', att_410_rowkeys_data]]
+    # citizens_cards_src_att420 = citizens_cards_src + "\\AttributeID=420"
+    # att_420_value = dc_methods.get_attribute_value_by_rowkey(citizens_cards_src_att420, att_420_filter)['AttributeValue'].values.tolist()
+    att_420_value = f_cols['F'+str(kwargs['F1'])]
+    # print('att_420_value', att_420_value)
 
-    citizen_src_110_a630_eq_1 = [['AttributeValue', ['1']]]
-    citizen_src_att630 = citizen_src + "\\AttributeID=630"
-    citizen_src_110_a630_eq_1_data = dc_methods.get_attribute_value_by_rowkey(citizen_src_att630, citizen_src_110_a630_eq_1)
-    citizen_src_110_a630_eq_1_rowkeys = citizen_src_110_a630_eq_1_data['RowKey'].values.tolist()
+    # citizen_src_110_a630_eq_1 = [['AttributeValue', ['1']]]
+    # citizen_src_att630 = citizen_src + "\\AttributeID=630"
+    # citizen_src_110_a630_eq_1_data = dc_methods.get_attribute_value_by_rowkey(citizen_src_att630, citizen_src_110_a630_eq_1)
+    # citizen_src_110_a630_eq_1_rowkeys = citizen_src_110_a630_eq_1_data['RowKey'].values.tolist()
+    #
+    # citizen_src_110_a630_eq_1_a620_eq_v410 = [['AttributeValue', [att_410_value]], ['RowKey', citizen_src_110_a630_eq_1_rowkeys]]
+    # citizen_src_att620 = citizen_src + "\\AttributeID=620"
+    # citizen_src_110_a630_eq_1_a620_eq_v410_data = dc_methods.get_attribute_value_by_rowkey(citizen_src_att620, citizen_src_110_a630_eq_1_a620_eq_v410)
+    # count_citizen_src_110_a630_eq_1_a620_eq_v410_data = len(citizen_src_110_a630_eq_1_a620_eq_v410_data.index)
+    #
+    # cards_src_100_a520_eq_1 = [['AttributeValue', ['1']]]
+    # cards_src_att520 = cards_src + "\\AttributeID=520"
+    # cards_src_100_a520_eq_1_data = dc_methods.get_attribute_value_by_rowkey(cards_src_att520, cards_src_100_a520_eq_1)
+    # cards_src_100_a520_eq_1_data_rowkeys = cards_src_100_a520_eq_1_data['RowKey'].values.tolist()
+    #
+    # cards_src_100_a520_eq_1_a510_eq_v420_filter = [['AttributeValue', att_420_value], ['RowKey', cards_src_100_a520_eq_1_data_rowkeys]]
+    # cards_src_att510 = cards_src + "\\AttributeID=510"
+    # cards_src_100_a520_eq_1_a510_eq_v420 = dc_methods.get_attribute_value_by_rowkey(cards_src_att510, cards_src_100_a520_eq_1_a510_eq_v420_filter)
+    # count_cards_src_100_a520_eq_1_a510_eq_v420_data = len(cards_src_100_a520_eq_1_a510_eq_v420.index)
 
-    citizen_src_110_a630_eq_1_a620_eq_v410 = [['AttributeValue', [att_410_value]], ['RowKey', citizen_src_110_a630_eq_1_rowkeys]]
-    citizen_src_att620 = citizen_src + "\\AttributeID=620"
-    citizen_src_110_a630_eq_1_a620_eq_v410_data = dc_methods.get_attribute_value_by_rowkey(citizen_src_att620, citizen_src_110_a630_eq_1_a620_eq_v410)
-    count_citizen_src_110_a630_eq_1_a620_eq_v410_data = len(citizen_src_110_a630_eq_1_a620_eq_v410_data.index)
 
-    cards_src_100_a520_eq_1 = [['AttributeValue', ['1']]]
-    cards_src_att520 = cards_src + "\\AttributeID=520"
-    cards_src_100_a520_eq_1_data = dc_methods.get_attribute_value_by_rowkey(cards_src_att520, cards_src_100_a520_eq_1)
-    cards_src_100_a520_eq_1_data_rowkeys = cards_src_100_a520_eq_1_data['RowKey'].values.tolist()
-
-    cards_src_100_a520_eq_1_a510_eq_v420_filter = [['AttributeValue', att_420_value], ['RowKey', cards_src_100_a520_eq_1_data_rowkeys]]
-    cards_src_att510 = cards_src + "\\AttributeID=510"
-    cards_src_100_a520_eq_1_a510_eq_v420 = dc_methods.get_attribute_value_by_rowkey(cards_src_att510, cards_src_100_a520_eq_1_a510_eq_v420_filter)
-    count_cards_src_100_a520_eq_1_a510_eq_v420_data = len(cards_src_100_a520_eq_1_a510_eq_v420.index)
-
-
-    # count_citizen_src_110_a630_eq_1_a620_eq_v410_data = 0
-    # count_cards_src_100_a520_eq_1_a510_eq_v420_data = 0
+    count_citizen_src_110_a630_eq_1_a620_eq_v410_data = 0
+    count_cards_src_100_a520_eq_1_a510_eq_v420_data = 0
     # print('att_410', att_410_value)
     # print('att_420', att_420_value)
-    print('count_citizen_src_110_a630_eq_1_a620_eq_v410_data', count_citizen_src_110_a630_eq_1_a620_eq_v410_data)
-    print('count_cards_src_110_a520_eq_1_a510_eq_v420_data', count_cards_src_100_a520_eq_1_a510_eq_v420_data)
+    # print('count_citizen_src_110_a630_eq_1_a620_eq_v410_data', count_citizen_src_110_a630_eq_1_a620_eq_v410_data)
+    # print('count_cards_src_110_a520_eq_1_a510_eq_v420_data', count_cards_src_100_a520_eq_1_a510_eq_v420_data)
 
     if count_citizen_src_110_a630_eq_1_a620_eq_v410_data >= 2 and count_cards_src_100_a520_eq_1_a510_eq_v420_data >= 2:
         return 1

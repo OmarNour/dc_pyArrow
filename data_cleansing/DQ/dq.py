@@ -32,17 +32,25 @@ class StartDQ:
     def validate_data_rule(self, bt_current_data_df, be_att_dr_id, data_rule_id, kwargs):
         # print('validate_data_rule started', be_att_dr_id, data_rule_id, kwargs)
         result_df = pd.DataFrame()
+        # bt_current_data_df.compute()
         if not bt_current_data_df.empty:
             # print('bt_current_data_df', len(bt_current_data_df.index))
+            if kwargs:
+                # ex: Firstname="Sita" Lastname="Sharma" Age=22 Phone=1234567890
+                kwargs_dic = eval("dict(%s)" % ','.join(kwargs.split()))
+                # print('kwargs_dic', kwargs_dic, kwargs_dic.keys())
+            else:
+                kwargs_dic = {}
             result_df = bt_current_data_df
             result_df['be_att_dr_id'] = be_att_dr_id
             result_df['data_rule_id'] = data_rule_id
-            result_df['is_issue'] = result_df.apply(lambda x: dr.rules_orchestrate(data_rule_id, x['AttributeValue'], x['RowKey'], kwargs), axis=1)
+            result_df['is_issue'] = result_df.apply(lambda x: dr.rules_orchestrate(data_rule_id, x['AttributeValue'], x['RowKey'], x, kwargs_dic), axis=1)
             result_df['data_value_pattern'] = result_df['AttributeValue'].apply(self.get_data_value_pattern)
         return result_df
 
     def get_source_categories(self):
-        source_categories_query = "select distinct t1.be_data_source_id source_id, t1.category_no from " + \
+        # t1.be_data_source_id source_id,
+        source_categories_query = "select distinct t1.category_no from " + \
                            self.dnx_config.be_attributes_data_rules_collection + " t1 " +\
                            " join " +self.dnx_config.be_data_sources_collection+ " t2 on t2._id = t1.be_data_source_id and t2.active = 1" \
                            " where t1.active = 1 order by t1.be_data_source_id, t1.category_no"
@@ -51,24 +59,24 @@ class StartDQ:
 
         return source_categories
 
-    def get_be_att_ids(self, source_id, category_no):
-        be_att_ids_query = "select distinct t1.be_att_id from " + \
+    def get_be_att_ids(self, category_no):
+        be_att_ids_query = "select distinct t1.be_data_source_id, t1.be_att_id from " + \
                            self.dnx_config.be_attributes_data_rules_collection + " t1 " + \
                            " join " + self.dnx_config.be_data_sources_collection + " t2 on t2._id = t1.be_data_source_id and t2.active = 1" \
                                                                                    " where t1.active = 1" \
-                                                                                   " and t1.category_no = " + str(category_no) + " and t1.be_data_source_id = " + single_quotes(str(source_id)) + \
-                           " order by t1.be_att_id"
+                                                                                   " and t1.category_no = " + str(category_no) + \
+                           " order by be_data_source_id, t1.be_att_id"
         be_att_ids = get_all_data_from_source(self.dnx_config.config_db_url, None, be_att_ids_query)
 
         return be_att_ids
 
-    def get_source_category_rules(self, source_id, category_no):
+    def get_source_category_rules(self, category_no):
         data_rules_query = "select t1._id, t1.be_att_id, t1.be_data_source_id from " + \
                            self.dnx_config.be_attributes_data_rules_collection + " t1 " + \
                            " join " + self.dnx_config.be_data_sources_collection + " t2 on t2._id = t1.be_data_source_id and t2.active = 1" \
                                                                                    " where t1.active = 1" \
-                           " and t1.category_no = "+str(category_no)+" and t1.be_data_source_id = " + single_quotes(str(source_id)) + \
-                           " order by t1.be_data_source_id"
+                           " and t1.category_no = "+str(category_no)+ \
+                           " order by t1.be_data_source_id, be_att_id"
         data_rules = get_all_data_from_source(self.dnx_config.config_db_url, None, data_rules_query)
 
         return data_rules
@@ -78,21 +86,36 @@ class StartDQ:
         for df in read_batches_from_parquet(result_data_set_tmp, None, int(self.parameters_dict['bt_batch_size']), self.cpu_num_workers):
             yield df['RowKey']
 
-    def get_bt_current_data(self, src_f_data_set, bt_dataset, source_id, category_no, be_att_id):
+    def get_bt_current_data(self, src_f_data, bt_dataset, source_id, category_no, be_att_id):
         complete_dataset = bt_dataset + \
                            "\\SourceID=" + str(source_id) +\
                            "\\AttributeID=" + str(be_att_id) +\
                            "\\ResetDQStage=" + str(category_no)
         # print('complete_dataset', complete_dataset)
         if is_dir_exists(complete_dataset):
+            # print('src_f_data', src_f_data.compute().columns)
+
             for file_name in get_files_in_dir(complete_dataset):
                 pa_file_path = complete_dataset+"\\"+file_name
-                bt_current_df = read_all_from_parquet(dataset=pa_file_path,
-                                                      columns=['bt_id', 'RowKey', 'AttributeValue', 'HashValue'],
-                                                      use_threads=True,#self.cpu_num_workers,
-                                                      filter=None)
+                bt_current_df = read_all_from_parquet_delayed(dataset=pa_file_path,
+                                                              columns=['bt_id', 'RowKey', 'AttributeValue', 'HashValue'],
+                                                              # use_threads=True,#self.cpu_num_workers,
+                                                              filter=None)
 
-                yield bt_current_df
+                # src_f_data_df = src_f_data[src_f_data['rowkey'].isin(bt_current_df['RowKey'])]
+                ###############
+
+                bt_current_df = bt_current_df.merge(src_f_data,
+                                                    left_on=['RowKey'],
+                                                    # left_index=True,
+                                                    # right_index=True,
+                                                    right_on=['rowkey'],
+                                                    suffixes=('_new', '_cbt'),
+                                                    how='inner'
+                                                    )
+
+                ######################
+                yield bt_current_df.compute()
 
     def insert_result_df(self, result_df, g_result, result_data_set, next_pass, next_fail, result_data_set_tmp, source_id, category_no, be_att_id):
         if not result_df.empty:
@@ -128,7 +151,7 @@ class StartDQ:
         rename_dataset(current_dataset, current_dataset_old)
         return current_dataset_old
 
-    def execute_lvl_data_rules(self, src_f_data_set, base_bt_current_data_set, result_data_set, result_data_set_tmp, source_id, be_att_dr_id, category_no,
+    def execute_lvl_data_rules(self, src_f_data, base_bt_current_data_set, result_data_set, result_data_set_tmp, source_id, be_att_dr_id, category_no,
                                be_att_id, rule_id, g_result, current_lvl_no, next_pass, next_fail, kwargs):
 
 
@@ -141,7 +164,7 @@ class StartDQ:
         suffix = "_old"
         result_data_set_tmp_old = self.switch_dataset(result_data_set_tmp, suffix)
 
-        for bt_current_data_df in self.get_bt_current_data(src_f_data_set, base_bt_current_data_set, source_id, category_no, be_att_id):
+        for bt_current_data_df in self.get_bt_current_data(src_f_data, base_bt_current_data_set, source_id, category_no, be_att_id):
             # print('len_bt_current_data_df', len(bt_current_data_df.index))
             if not bt_current_data_df.empty:
                 if current_lvl_no > 1:
@@ -178,6 +201,7 @@ class StartDQ:
             kwargs = data_rule_lvls['kwargs']
 
             g_result = 1 if no_of_lvls == current_lvl_no else 0
+            # print('no_of_lvls', be_att_dr_id, g_result, no_of_lvls, current_lvl_no)
 
             be_id = self.get_be_id_by_be_att_id(str(be_att_id))
             core_tables = get_be_core_table_names(self.dnx_config.config_db_url, self.dnx_config.org_business_entities_collection, be_id)
@@ -187,12 +211,16 @@ class StartDQ:
 
             # print(core_tables)
             base_bt_current_data_set = self.dnx_db_path + bt_current_collection
-            src_f_data_set = self.src_f_db_path + source_collection
+            src_f_data_set = self.src_f_db_path + source_collection + "\\SourceID=" + str(source_id)
             result_data_set = self.result_db_path + dq_result_collection
             self.all_result_data_set.append(result_data_set) if result_data_set not in self.all_result_data_set else None
             result_data_set_tmp = result_data_set + "_tmp"
+
+            if current_lvl_no == 1:
+                src_f_data = read_all_from_parquet_delayed(src_f_data_set)
+                # src_f_data = src_f_data.set_index('rowkey')
             if is_dir_exists(base_bt_current_data_set):
-                self.execute_lvl_data_rules(src_f_data_set, base_bt_current_data_set, result_data_set, result_data_set_tmp, source_id, be_att_dr_id, category_no,
+                self.execute_lvl_data_rules(src_f_data, base_bt_current_data_set, result_data_set, result_data_set_tmp, source_id, be_att_dr_id, category_no,
                                             be_att_id, rule_id, g_result, current_lvl_no, next_pass, next_fail, kwargs)
 
     def get_next_be_att_id_category(self, source_id, be_att_id, current_category):
@@ -282,10 +310,10 @@ class StartDQ:
         source_categories = self.get_source_categories()
 
         for i, source_id_category_no in source_categories.iterrows():
-            source_id = source_id_category_no['source_id']
+            # source_id = source_id_category_no['source_id']
             category_no = source_id_category_no['category_no']
 
-            source_category_rules = self.get_source_category_rules(source_id, category_no)
+            source_category_rules = self.get_source_category_rules(category_no)
             parallel_execute_data_rules = []
             for j, data_rule in source_category_rules.iterrows():
                 delayed_execute_data_rules = delayed(self.execute_data_rules)(data_rule, category_no)
@@ -293,10 +321,11 @@ class StartDQ:
             print('start compute parallel_execute_data_rules!')
             compute(*parallel_execute_data_rules, num_workers=self.cpu_num_workers)
 
-            be_att_ids = self.get_be_att_ids(source_id, category_no)
+            source_id_be_att_ids = self.get_be_att_ids(category_no)
             parallel_execute_upgrade_category = []
-            for k, be_att_id in be_att_ids.iterrows():
-                be_att_id = be_att_id['be_att_id']
+            for k, source_id_be_att_id in source_id_be_att_ids.iterrows():
+                be_att_id = source_id_be_att_id['be_att_id']
+                source_id = source_id_be_att_id['be_data_source_id']
                 delayed_upgrade = delayed(self.upgrade_category)(source_id, category_no, be_att_id)
                 parallel_execute_upgrade_category.append(delayed_upgrade)
             print('start compute parallel_execute_upgrade_category!')
