@@ -19,7 +19,7 @@ class StartDQ:
         parquet_db_root_path = self.dnx_config.parquet_db_root_path
         self.src_db_path = parquet_db_root_path + self.dnx_config.src_db_name + '\\'
         self.dnx_db_path = parquet_db_root_path + self.dnx_config.dnx_db_name + '\\'
-        self.mdm_db_path = parquet_db_root_path + self.dnx_config.mdm_db_name + '\\'
+        self.src_f_db_path = parquet_db_root_path + self.dnx_config.src_f_db_name + '\\'
         self.result_db_path = parquet_db_root_path + self.dnx_config.result_db_name + '\\'
 
     def get_data_value_pattern(self, att_value):
@@ -78,7 +78,7 @@ class StartDQ:
         for df in read_batches_from_parquet(result_data_set_tmp, None, int(self.parameters_dict['bt_batch_size']), self.cpu_num_workers):
             yield df['RowKey']
 
-    def get_bt_current_data(self, mdm_data_set, bt_dataset, source_id, category_no, be_att_id):
+    def get_bt_current_data(self, src_f_data_set, bt_dataset, source_id, category_no, be_att_id):
         complete_dataset = bt_dataset + \
                            "\\SourceID=" + str(source_id) +\
                            "\\AttributeID=" + str(be_att_id) +\
@@ -128,7 +128,7 @@ class StartDQ:
         rename_dataset(current_dataset, current_dataset_old)
         return current_dataset_old
 
-    def execute_lvl_data_rules(self, mdm_data_set, base_bt_current_data_set, result_data_set, result_data_set_tmp, source_id, be_att_dr_id, category_no,
+    def execute_lvl_data_rules(self, src_f_data_set, base_bt_current_data_set, result_data_set, result_data_set_tmp, source_id, be_att_dr_id, category_no,
                                be_att_id, rule_id, g_result, current_lvl_no, next_pass, next_fail, kwargs):
 
 
@@ -136,12 +136,12 @@ class StartDQ:
         print('++++++++ be_att_id:', be_att_id, 'rule_id:', rule_id, 'g_result:', g_result, 'current_lvl_no:', current_lvl_no,
               'next_pass:', next_pass, 'next_fail:', next_fail)
 
-        result_data_set_tmp = result_data_set_tmp+str(be_att_dr_id)
+        result_data_set_tmp = result_data_set_tmp+"_"+str(be_att_dr_id)
 
         suffix = "_old"
         result_data_set_tmp_old = self.switch_dataset(result_data_set_tmp, suffix)
 
-        for bt_current_data_df in self.get_bt_current_data(mdm_data_set, base_bt_current_data_set, source_id, category_no, be_att_id):
+        for bt_current_data_df in self.get_bt_current_data(src_f_data_set, base_bt_current_data_set, source_id, category_no, be_att_id):
             # print('len_bt_current_data_df', len(bt_current_data_df.index))
             if not bt_current_data_df.empty:
                 if current_lvl_no > 1:
@@ -157,6 +157,7 @@ class StartDQ:
                 else:
                     result_df = self.validate_data_rule(bt_current_data_df, be_att_dr_id, rule_id, kwargs)
                 self.insert_result_df(result_df, g_result, result_data_set, next_pass, next_fail, result_data_set_tmp, source_id, category_no, be_att_id)
+        delete_dataset(result_data_set_tmp_old)
 
     def execute_data_rules(self, data_rule, category_no):
         # print('execute_data_rules started')
@@ -186,12 +187,12 @@ class StartDQ:
 
             # print(core_tables)
             base_bt_current_data_set = self.dnx_db_path + bt_current_collection
-            mdm_data_set = self.mdm_db_path + source_collection
+            src_f_data_set = self.src_f_db_path + source_collection
             result_data_set = self.result_db_path + dq_result_collection
             self.all_result_data_set.append(result_data_set) if result_data_set not in self.all_result_data_set else None
             result_data_set_tmp = result_data_set + "_tmp"
             if is_dir_exists(base_bt_current_data_set):
-                self.execute_lvl_data_rules(mdm_data_set, base_bt_current_data_set, result_data_set, result_data_set_tmp, source_id, be_att_dr_id, category_no,
+                self.execute_lvl_data_rules(src_f_data_set, base_bt_current_data_set, result_data_set, result_data_set_tmp, source_id, be_att_dr_id, category_no,
                                             be_att_id, rule_id, g_result, current_lvl_no, next_pass, next_fail, kwargs)
 
     def get_next_be_att_id_category(self, source_id, be_att_id, current_category):

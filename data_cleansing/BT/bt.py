@@ -16,7 +16,7 @@ class StartBT:
         self.parameters_dict = self.dnx_config.get_parameters_values()
         parquet_db_root_path = self.dnx_config.parquet_db_root_path
         self.src_db_path = parquet_db_root_path + self.dnx_config.src_db_name + '\\'
-        self.mdm_db_path = parquet_db_root_path + self.dnx_config.mdm_db_name + '\\'
+        self.src_f_db_path = parquet_db_root_path + self.dnx_config.src_f_db_name + '\\'
         self.dnx_db_path = parquet_db_root_path + self.dnx_config.dnx_db_name + '\\'
         self.result_db_path = parquet_db_root_path + self.dnx_config.result_db_name + '\\'
 
@@ -36,7 +36,7 @@ class StartBT:
     def prepare_source_df(self, source_df, row_key_column_name, process_no_column_name, no_of_cores):
         new_source_df = source_df
         new_source_df[row_key_column_name] = new_source_df[row_key_column_name].apply(sha1)
-        new_source_df['_id'] = new_source_df[row_key_column_name]
+        # new_source_df['srcID'] = new_source_df[row_key_column_name]
         new_source_df[process_no_column_name] = new_source_df.apply(lambda x: assign_process_no(no_of_cores, x.name), axis=1)
         return new_source_df
 
@@ -75,25 +75,27 @@ class StartBT:
             self.switch_bt_current_dataset(bt_current_collection)
             # print(be_source_ids)
             for i, source_id in be_source_ids.iterrows():
-                source_id = source_id['_id']
+                source_id = source_id['SourceID']
                 connection_credentials = self.get_source_connection_credentials(source_id)
                 source_url, source_schema, source_query = connection_credentials[0], connection_credentials[1], connection_credentials[2]
                 row_key_column_name = self.get_rowkey_column_name(source_id, be_id)
                 f_col = self.get_source_column_name(source_id, be_id)
                 source_data_set = self.src_db_path + source_collection
-                mdm_data_set = self.mdm_db_path + source_collection
+                src_f_data_set = self.src_f_db_path + source_collection
                 delete_dataset(source_data_set)
-                delete_dataset(mdm_data_set)
+                delete_dataset(src_f_data_set)
                 for file_seq, chunk_data in enumerate(get_chuncks_of_data_from_source(source_url, source_schema, source_query, int(self.parameters_dict['source_batch_size']))):
-                    delayed_prepare_and_save_src_data = delayed(self.prepare_and_save_src_data)(chunk_data, row_key_column_name, f_col, no_of_cores, source_data_set, mdm_data_set)
+                    delayed_prepare_and_save_src_data = delayed(self.prepare_and_save_src_data)(source_id, chunk_data, row_key_column_name, f_col, no_of_cores, source_data_set, src_f_data_set)
                     parallel_prepare_and_save_src_data.append(delayed_prepare_and_save_src_data)
         compute(*parallel_prepare_and_save_src_data, num_workers=cpu_num_workers)
 
-    def prepare_and_save_src_data(self, chunk_data, row_key_column_name, f_col, no_of_cores, source_data_set, mdm_data_set):
+    def prepare_and_save_src_data(self, source_id, chunk_data, row_key_column_name, f_col, no_of_cores, source_data_set, src_f_data_set):
+        chunk_data['SourceID'] = source_id
         chunk_data = self.prepare_source_df(chunk_data, row_key_column_name, self.dnx_config.process_no_column_name, no_of_cores)
-        save_to_parquet(chunk_data, source_data_set, partition_cols=[self.dnx_config.process_no_column_name])
-        chunk_data = chunk_data.rename(index=str, columns=f_col).drop(['_id', 'process_no'], axis=1)
-        save_to_parquet(chunk_data, mdm_data_set, partition_cols=None)
+        save_to_parquet(chunk_data, source_data_set, partition_cols=['SourceID', self.dnx_config.process_no_column_name])
+
+        chunk_data = chunk_data.rename(index=str, columns=f_col).drop(['process_no'], axis=1)
+        save_to_parquet(chunk_data, src_f_data_set, partition_cols=['SourceID'])
 
     def melt_query_result(self,df_result,source_id):
         df_melt_result = pd.melt(df_result, id_vars='rowkey', var_name='AttributeName', value_name='AttributeValue')
@@ -272,7 +274,7 @@ class StartBT:
         base_bt_current_data_set = self.dnx_db_path + bt_current_collection
         bt_data_set = self.dnx_db_path + bt_collection
         base_source_data_set = self.src_db_path + source_collection
-        source_data_set = base_source_data_set + '\\' + self.dnx_config.process_no_column_name + '=' + process_no
+        source_data_set = base_source_data_set + '\\SourceID=' + str(source_id) + '\\' + self.dnx_config.process_no_column_name + '=' + process_no
 
         # bt_current_data_ddf = pd.DataFrame()
         # bt_current_data_df = pd.DataFrame()
@@ -321,7 +323,7 @@ class StartBT:
         list_mapping_be_source_ids = data_to_list(mapping_be_source_ids['be_data_source_id'])
         in_list = list_to_string(list_mapping_be_source_ids, ", ", 1)
 
-        be_source_ids_query = 'select distinct _id from ' + self.dnx_config.be_data_sources_collection + ' where active = 1 and _id in (' + in_list + ') and be_id = ' + single_quotes(be_id)
+        be_source_ids_query = 'select distinct _id SourceID from ' + self.dnx_config.be_data_sources_collection + ' where active = 1 and _id in (' + in_list + ') and be_id = ' + single_quotes(be_id)
         be_source_ids = get_all_data_from_source(self.dnx_config.config_db_url, None, be_source_ids_query)
         # print('mapping_be_source_ids_query', mapping_be_source_ids_query)
         return be_source_ids
@@ -342,7 +344,7 @@ class StartBT:
 
             # print(be_source_ids)
             for i, source_id in be_source_ids.iterrows():
-                source_id = source_id['_id']
+                source_id = source_id['SourceID']
                 # print(source_id, bt_current_collection, bt_collection, source_collection)
                 delayed_etl_be = delayed(self.etl_be)(source_id, bt_current_collection, bt_collection, source_collection, process_no, cpu_num_workers)
                 parallel_etl_be.append(delayed_etl_be)
