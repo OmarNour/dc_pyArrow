@@ -104,11 +104,11 @@ def save_to_parquet(df, dataset_root_path, partition_cols=None, string_columns=N
         print("{:,}".format(len(df.index)), 'records inserted into', dataset_root_path, 'in', datetime.datetime.now() - start_time)
 
 
-def read_batches_from_parquet(dataset_root_path, columns, batch_size, nthreads, filter=None):
+def read_batches_from_parquet(dataset_root_path, columns, batch_size, use_threads, filter=None):
 
     for table in (table for table in pq.read_table(dataset_root_path,
                                                    columns=columns,
-                                                   use_threads=nthreads,
+                                                   use_threads=use_threads,
                                                    use_pandas_metadata=False).to_batches(batch_size)):
         df = table.to_pandas()
 
@@ -127,10 +127,10 @@ def read_partioned_data_from_parquet(dataset_root_path, columns, filter=None):
         return pd.DataFrame
 
 
-def read_all_from_parquet(dataset_root_path, columns, nthreads, filter=None):
-    df = pq.read_table(dataset_root_path,
+def read_all_from_parquet(dataset, columns, use_threads, filter=None):
+    df = pq.read_table(dataset,
                        columns=columns,
-                       use_threads=nthreads,
+                       use_threads=use_threads,
                        use_pandas_metadata=True).to_pandas()
 
     if filter:

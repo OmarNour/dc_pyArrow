@@ -259,7 +259,11 @@ class StartBT:
 
     def get_bt_current_data(self, bt_dataset, columns, filter):
         bt_df = pd.DataFrame()
-        for df in read_batches_from_parquet(bt_dataset, columns, int(self.parameters_dict['bt_batch_size']), self.cpu_num_workers, filter=filter):
+        for df in read_batches_from_parquet(bt_dataset,
+                                            columns,
+                                            int(self.parameters_dict['bt_batch_size']),
+                                            True, #self.cpu_num_workers,
+                                            filter=filter):
             if not df.empty:
                 bt_df = bt_df.append(df)
         return bt_df

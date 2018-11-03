@@ -87,9 +87,9 @@ class StartDQ:
         if is_dir_exists(complete_dataset):
             for file_name in get_files_in_dir(complete_dataset):
                 pa_file_path = complete_dataset+"\\"+file_name
-                bt_current_df = read_all_from_parquet(dataset_root_path=pa_file_path,
+                bt_current_df = read_all_from_parquet(dataset=pa_file_path,
                                                       columns=['bt_id', 'RowKey', 'AttributeValue', 'HashValue'],
-                                                      nthreads=self.cpu_num_workers,
+                                                      use_threads=True,#self.cpu_num_workers,
                                                       filter=None)
 
                 yield bt_current_df
@@ -261,14 +261,15 @@ class StartDQ:
 
         for result_path in self.all_result_data_set:
             # result_path = "C:\\dc\\parquet_db\\Result\\result_4383_10"
-            df1 = dd.read_parquet(path=result_path, engine='pyarrow')[['p_SourceID', 'p_AttributeID', 'p_ResetDQStage', 'p_be_att_dr_id', 'p_data_rule_id', 'p_is_issue', 'bt_id']]
-            df2 = df1.reset_index()
-            df2.columns = ['indx', 'SourceID', 'AttributeID', 'Category_no', 'be_att_dr_id', 'rule_id', 'is_issue', 'bt_id']
-            df2 = df2.groupby(['SourceID', 'AttributeID', 'Category_no', 'be_att_dr_id', 'rule_id', 'is_issue']).agg({'bt_id': ['count']})
-            df2.columns = ["cells#"]
+            if is_dir_exists(result_path):
+                df1 = dd.read_parquet(path=result_path, engine='pyarrow')[['p_SourceID', 'p_AttributeID', 'p_ResetDQStage', 'p_be_att_dr_id', 'p_data_rule_id', 'p_is_issue', 'bt_id']]
+                df2 = df1.reset_index()
+                df2.columns = ['indx', 'SourceID', 'AttributeID', 'Category_no', 'be_att_dr_id', 'rule_id', 'is_issue', 'bt_id']
+                df2 = df2.groupby(['SourceID', 'AttributeID', 'Category_no', 'be_att_dr_id', 'rule_id', 'is_issue']).agg({'bt_id': ['count']})
+                df2.columns = ["cells#"]
 
-            print(df2.compute())
-            print("----------------------------------------------------------------------")
+                print(df2.compute())
+                print("----------------------------------------------------------------------")
         print("**********************************************************************")
 
     def start_dq(self, process_no, cpu_num_workers):
