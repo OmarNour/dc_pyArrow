@@ -100,16 +100,12 @@ class StartBT:
     def melt_query_result(self,df_result,source_id):
         df_melt_result = pd.melt(df_result, id_vars='rowkey', var_name='AttributeName', value_name='AttributeValue')
         df_melt_result.columns = ['RowKey', 'AttributeName', 'AttributeValue']
-        df_melt_result['BTSID'] = '1'
         df_melt_result['SourceID'] = source_id
-        df_melt_result['new_row'] = '1'
-        df_melt_result['RefSID'] = None
         df_melt_result['HashValue'] = df_melt_result['AttributeValue'].apply(sha1)
         df_melt_result['InsertedBy'] = 'ETL'
         df_melt_result['ModifiedBy'] = None
         df_melt_result['ValidFrom'] = datetime.datetime.now().isoformat()
         df_melt_result['ValidTo'] = None
-        df_melt_result['IsCurrent'] = '1'
         df_melt_result['bt_id'] = 0
         df_melt_result[self.dnx_config.process_no_column_name] = self.process_no
         # df_melt_result['ResetDQStage'] = 0
@@ -175,11 +171,10 @@ class StartBT:
             merge_df = merge_df.reset_index()
 
             new_data_df = merge_df.loc[(merge_df['SourceID_cbt'].isnull())]
-            new_data_df = new_data_df[['bt_id', 'SourceID_new', 'RowKey_new', 'AttributeID_new', 'BTSID_new',
-                                       'AttributeValue_new', 'RefSID_new', 'HashValue_new', 'InsertedBy_new',
-                                       'ModifiedBy_new', 'ValidFrom_new', 'ValidTo_new', 'IsCurrent_new',
-                                       'ResetDQStage_new',
-                                       'new_row_new', process_no_new]]
+            new_data_df = new_data_df[['bt_id', 'SourceID_new', 'RowKey_new', 'AttributeID_new',
+                                       'AttributeValue_new', 'HashValue_new', 'InsertedBy_new',
+                                       'ModifiedBy_new', 'ValidFrom_new', 'ValidTo_new',
+                                       'ResetDQStage_new', process_no_new]]
             new_data_df.columns = bt_columns
 
             merge_df = merge_df.loc[(merge_df['SourceID_cbt'].notnull()) &
@@ -188,27 +183,24 @@ class StartBT:
             bt_modified_expired = merge_df.loc[(merge_df['HashValue_cbt'] != merge_df['HashValue_new'])]
             bt_same = merge_df.loc[(merge_df['HashValue_cbt'] == merge_df['HashValue_new'])]
 
-            bt_modified_expired[['ValidTo_cbt', 'IsCurrent_cbt', 'ModifiedBy_cbt']] = \
-                [datetime.datetime.now().isoformat(), 0, 'ETL']
+            bt_modified_expired[['ValidTo_cbt', 'ModifiedBy_cbt']] = \
+                [datetime.datetime.now().isoformat(), 'ETL']
 
-            bt_modified_df = bt_modified_expired[['bt_id', 'SourceID_new', 'RowKey_new', 'AttributeID_new', 'BTSID_new',
-                                                  'AttributeValue_new', 'RefSID_new', 'HashValue_new', 'InsertedBy_new',
-                                                  'ModifiedBy_new', 'ValidFrom_new', 'ValidTo_new', 'IsCurrent_new',
-                                                  'ResetDQStage_new',
-                                                  'new_row_new', process_no_new]]
+            bt_modified_df = bt_modified_expired[['bt_id', 'SourceID_new', 'RowKey_new', 'AttributeID_new',
+                                                  'AttributeValue_new', 'HashValue_new', 'InsertedBy_new',
+                                                  'ModifiedBy_new', 'ValidFrom_new', 'ValidTo_new',
+                                                  'ResetDQStage_new', process_no_new]]
             bt_modified_df.columns = bt_columns
 
             bt_expired_data_df = bt_modified_expired[
-                ['bt_id', 'SourceID_cbt', 'RowKey_cbt', 'AttributeID_cbt', 'BTSID_cbt',
-                 'AttributeValue_cbt', 'RefSID_cbt', 'HashValue_cbt', 'InsertedBy_cbt',
-                 'ModifiedBy_cbt', 'ValidFrom_cbt', 'ValidTo_cbt', 'IsCurrent_cbt', 'ResetDQStage_cbt',
-                 'new_row_cbt', process_no_cbt]]
+                ['bt_id', 'SourceID_cbt', 'RowKey_cbt', 'AttributeID_cbt',
+                 'AttributeValue_cbt', 'HashValue_cbt', 'InsertedBy_cbt',
+                 'ModifiedBy_cbt', 'ValidFrom_cbt', 'ValidTo_cbt', 'ResetDQStage_cbt', process_no_cbt]]
 
             bt_same_df = bt_same[
-                ['bt_id', 'SourceID_cbt', 'RowKey_cbt', 'AttributeID_cbt', 'BTSID_cbt',
-                 'AttributeValue_cbt', 'RefSID_cbt', 'HashValue_cbt', 'InsertedBy_cbt',
-                 'ModifiedBy_cbt', 'ValidFrom_cbt', 'ValidTo_cbt', 'IsCurrent_cbt', 'ResetDQStage_cbt',
-                 'new_row_cbt', process_no_cbt]]
+                ['bt_id', 'SourceID_cbt', 'RowKey_cbt', 'AttributeID_cbt',
+                 'AttributeValue_cbt', 'HashValue_cbt', 'InsertedBy_cbt',
+                 'ModifiedBy_cbt', 'ValidFrom_cbt', 'ValidTo_cbt', 'ResetDQStage_cbt', process_no_cbt]]
 
             bt_expired_data_df.columns = bt_columns
             bt_same_df.columns = bt_columns
