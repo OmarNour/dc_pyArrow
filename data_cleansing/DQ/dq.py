@@ -71,7 +71,7 @@ class StartDQ:
         return be_att_ids
 
     def get_source_category_rules(self, category_no):
-        data_rules_query = "select t1._id, t1.be_att_id, t1.be_data_source_id from " + \
+        data_rules_query = "select t1._id, t1.be_att_id, t1.be_data_source_id, join_with_f from " + \
                            self.dnx_config.be_attributes_data_rules_collection + " t1 " + \
                            " join " + self.dnx_config.be_data_sources_collection + " t2 on t2._id = t1.be_data_source_id and t2.active = 1" \
                                                                                    " where t1.active = 1" \
@@ -86,7 +86,7 @@ class StartDQ:
         for df in read_batches_from_parquet(result_data_set_tmp, None, int(self.parameters_dict['bt_batch_size']), self.cpu_num_workers):
             yield df['RowKey']
 
-    def get_bt_current_data(self, src_f_data, bt_dataset, source_id, category_no, be_att_id):
+    def get_bt_current_data(self, src_f_data, bt_dataset, source_id, category_no, be_att_id, join_with_f):
         complete_dataset = bt_dataset + \
                            "\\SourceID=" + str(source_id) +\
                            "\\AttributeID=" + str(be_att_id) +\
@@ -98,21 +98,21 @@ class StartDQ:
             for file_name in get_files_in_dir(complete_dataset):
                 pa_file_path = complete_dataset+"\\"+file_name
                 bt_current_df = read_all_from_parquet_delayed(dataset=pa_file_path,
-                                                              columns=['bt_id', 'RowKey', 'AttributeValue', 'HashValue'],
+                                                              columns=['bt_id', 'RowKey', 'AttributeValue'],
                                                               # use_threads=True,#self.cpu_num_workers,
                                                               filter=None)
 
                 # src_f_data_df = src_f_data[src_f_data['rowkey'].isin(bt_current_df['RowKey'])]
                 ###############
-
-                bt_current_df = bt_current_df.merge(src_f_data,
-                                                    left_on=['RowKey'],
-                                                    # left_index=True,
-                                                    # right_index=True,
-                                                    right_on=['rowkey'],
-                                                    suffixes=('_new', '_cbt'),
-                                                    how='inner'
-                                                    )
+                if join_with_f == 1:
+                    bt_current_df = bt_current_df.merge(src_f_data,
+                                                        left_on=['RowKey'],
+                                                        # left_index=True,
+                                                        # right_index=True,
+                                                        right_on=['rowkey'],
+                                                        suffixes=('_new', '_cbt'),
+                                                        how='inner'
+                                                        )
 
                 ######################
                 yield bt_current_df.compute()
@@ -152,7 +152,7 @@ class StartDQ:
         return current_dataset_old
 
     def execute_lvl_data_rules(self, src_f_data, base_bt_current_data_set, result_data_set, result_data_set_tmp, source_id, be_att_dr_id, category_no,
-                               be_att_id, rule_id, g_result, current_lvl_no, next_pass, next_fail, kwargs):
+                               be_att_id, rule_id, g_result, current_lvl_no, next_pass, next_fail, join_with_f, kwargs):
 
 
         print('++++++++ source_id:', source_id, 'be_att_dr_id:', be_att_dr_id, 'category_no:', category_no)
@@ -164,7 +164,7 @@ class StartDQ:
         suffix = "_old"
         result_data_set_tmp_old = self.switch_dataset(result_data_set_tmp, suffix)
 
-        for bt_current_data_df in self.get_bt_current_data(src_f_data, base_bt_current_data_set, source_id, category_no, be_att_id):
+        for bt_current_data_df in self.get_bt_current_data(src_f_data, base_bt_current_data_set, source_id, category_no, be_att_id, join_with_f):
             # print('len_bt_current_data_df', len(bt_current_data_df.index))
             if not bt_current_data_df.empty:
                 if current_lvl_no > 1:
@@ -186,6 +186,8 @@ class StartDQ:
         # print('execute_data_rules started')
         be_att_dr_id = data_rule['_id']
         source_id = data_rule['be_data_source_id']
+        join_with_f = data_rule['join_with_f']
+
         be_data_rule_lvls_query = "select be_att_id, rule_id, next_pass, next_fail, kwargs from " + \
                                   self.dnx_config.be_attributes_data_rules_lvls_collection + \
                                   " where active = 1 and be_att_dr_id = " + str(be_att_dr_id) + " order by level_no"
@@ -216,12 +218,14 @@ class StartDQ:
             self.all_result_data_set.append(result_data_set) if result_data_set not in self.all_result_data_set else None
             result_data_set_tmp = result_data_set + "_tmp"
 
-            if current_lvl_no == 1:
+            if current_lvl_no == 1 and join_with_f == 1:
                 src_f_data = read_all_from_parquet_delayed(src_f_data_set)
+            else:
+                src_f_data = None
                 # src_f_data = src_f_data.set_index('rowkey')
             if is_dir_exists(base_bt_current_data_set):
                 self.execute_lvl_data_rules(src_f_data, base_bt_current_data_set, result_data_set, result_data_set_tmp, source_id, be_att_dr_id, category_no,
-                                            be_att_id, rule_id, g_result, current_lvl_no, next_pass, next_fail, kwargs)
+                                            be_att_id, rule_id, g_result, current_lvl_no, next_pass, next_fail, join_with_f, kwargs)
 
     def get_next_be_att_id_category(self, source_id, be_att_id, current_category):
         next_category_query = "select min(category_no) next_category_no" \

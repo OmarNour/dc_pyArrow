@@ -65,7 +65,7 @@ class StartBT:
 
     def load_source_data(self, no_of_cores=1, cpu_num_workers=1):
         be_ids = self.get_be_ids()
-        parallel_prepare_and_save_src_data =[]
+        parallel_prepare_and_save_src_data = []
         for i, be_id in be_ids.iterrows():
             be_id = be_id['be_id']
             be_source_ids = self.get_be_source_ids(be_id)
