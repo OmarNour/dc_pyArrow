@@ -282,7 +282,8 @@ class StartDQ:
 
                     for bt_current in read_batches_from_parquet(bt_dataset_old, None, int(self.parameters_dict['bt_batch_size']), self.cpu_num_workers):
                         bt_current_passed = bt_current[bt_current['RowKey'].isin(rowkeys.index)]
-                        bt_current_failed = bt_current[~bt_current['bt_id'].isin(bt_current_passed['bt_id'])]
+                        # bt_current_failed = bt_current[~bt_current['bt_id'].isin(bt_current_passed.index)]
+                        bt_current_failed = bt_current[~bt_current.index.isin(bt_current_passed.index)]
 
                         save_to_parquet(bt_current_failed, current_category_dataset, partition_cols=None, string_columns=bt_partioned_object_cols)
                         save_to_parquet(bt_current_passed, next_category_dataset, partition_cols=None, string_columns=bt_partioned_object_cols)

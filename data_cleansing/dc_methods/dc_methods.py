@@ -10,14 +10,14 @@ import os, sys
 import dask.dataframe as dd
 
 
-bt_columns = ['bt_id', 'SourceID', 'RowKey', 'AttributeID', 'AttributeValue',
+bt_columns = ['SourceID', 'RowKey', 'AttributeID', 'AttributeValue',
                            'HashValue', 'InsertedBy', 'ModifiedBy', 'ValidFrom', 'ValidTo',
                            'ResetDQStage', 'process_no']
 
-bt_object_cols = ['bt_id', 'RowKey', 'AttributeValue', 'HashValue',
+bt_object_cols = ['RowKey', 'AttributeValue', 'HashValue',
                                'InsertedBy', 'ModifiedBy', 'ValidFrom', 'ValidTo', 'process_no']
 
-bt_partioned_object_cols = ['bt_id', 'RowKey', 'AttributeValue', 'HashValue',
+bt_partioned_object_cols = ['RowKey', 'AttributeValue', 'HashValue',
                                'InsertedBy', 'ModifiedBy', 'ValidFrom', 'ValidTo', 'process_no']
 
 

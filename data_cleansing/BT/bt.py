@@ -2,7 +2,7 @@ import sys
 from data_cleansing.dc_methods.dc_methods import get_all_data_from_source, sha1, single_quotes, data_to_list, \
     get_chuncks_of_data_from_source, list_to_string, delete_dataset, save_to_parquet, assign_process_no, get_minimum_category, \
     get_be_core_table_names, rename_dataset, read_batches_from_parquet, bt_object_cols, is_dir_exists, bt_partition_cols, \
-    bt_columns
+    bt_columns, read_all_from_parquet_delayed
 import data_cleansing.CONFIG.Config as DNXConfig
 import datetime
 import pandas as pd
@@ -17,6 +17,7 @@ class StartBT:
         parquet_db_root_path = self.dnx_config.parquet_db_root_path
         self.src_db_path = parquet_db_root_path + self.dnx_config.src_db_name + '\\'
         self.src_f_db_path = parquet_db_root_path + self.dnx_config.src_f_db_name + '\\'
+        self.src_melt_db_path = parquet_db_root_path + self.dnx_config.src_melt_db_name + '\\'
         self.dnx_db_path = parquet_db_root_path + self.dnx_config.dnx_db_name + '\\'
         self.result_db_path = parquet_db_root_path + self.dnx_config.result_db_name + '\\'
 
@@ -124,7 +125,7 @@ class StartBT:
         data_sources_mapping_data = data_sources_mapping_data.rename(index=str, columns={"query_column_name": "AttributeName", "be_att_id": "AttributeID"})
         return data_sources_mapping_data
 
-    def attach_attribute_id(self, att_query_df, melt_df):
+    def attach_attribute_id(self, att_query_df, melt_df, with_ids=True):
         # print(att_query_df.columns)
         # print(melt_df.columns)
         new_rows_df = melt_df.merge(att_query_df, left_on='AttributeName',
@@ -136,14 +137,28 @@ class StartBT:
         new_rows_df['bt_id'] = new_rows_df['SourceID'].astype(str) + new_rows_df['AttributeID'].astype(str) + new_rows_df['RowKey']
         new_rows_df['ResetDQStage'] = new_rows_df.ResetDQStage.astype('int64')
 
-        bt_ids = data_to_list(new_rows_df['bt_id'])
+        if with_ids:
+            # bt_ids = data_to_list(new_rows_df['bt_id'])
+            bt_ids = new_rows_df[['bt_id']]
+        else:
+            bt_ids = None
+
+        new_rows_df = new_rows_df.set_index(['bt_id'])
         return new_rows_df[bt_columns], bt_ids
 
-    def get_source_data(self, source_id, source_data_set):
+    def get_all_from_source_data(self, source_id, source_data_set):
+        att_query_df = self.get_att_ids_df(source_id)
+        all_data = read_all_from_parquet_delayed(source_data_set)
+        melt_chunk_data = self.melt_query_result(all_data, source_id)
+        source_data_df = self.attach_attribute_id(att_query_df, melt_chunk_data)[0]
+        return source_data_df
+
+    def get_chunks_from_source_data(self, source_id, source_data_set):
         att_query_df = self.get_att_ids_df(source_id)
         for chunk_data in read_batches_from_parquet(source_data_set, None, int(self.parameters_dict['temp_source_batch_size']), self.cpu_num_workers):
             melt_chunk_data = self.melt_query_result(chunk_data, source_id)
             attach_attribute_id_result = self.attach_attribute_id(att_query_df, melt_chunk_data)
+
             source_data_df, bt_ids = attach_attribute_id_result[0], attach_attribute_id_result[1]
             yield source_data_df, bt_ids
 
@@ -161,18 +176,20 @@ class StartBT:
         process_no_new = self.dnx_config.process_no_column_name+"_new"
         process_no_cbt = self.dnx_config.process_no_column_name + "_cbt"
         if not current_df.empty:
-            source_df = source_df.set_index(['bt_id'])
-            current_df = current_df.set_index(['bt_id'])
+            # source_df = source_df.set_index(['bt_id'])
+            # current_df = current_df.set_index(['bt_id'])
             merge_df = source_df.merge(current_df,
-                                       left_on=['bt_id'],
-                                       right_on=['bt_id'],
+                                       # left_on=['bt_id'],
+                                       # right_on=['bt_id'],
+                                       left_index=True,
+                                       right_index=True,
                                        suffixes=('_new', '_cbt'),
                                        how='left'
                                        )
-            merge_df = merge_df.reset_index()
+            # merge_df = merge_df.reset_index()
 
             new_data_df = merge_df.loc[(merge_df['SourceID_cbt'].isnull())]
-            new_data_df = new_data_df[['bt_id', 'SourceID_new', 'RowKey_new', 'AttributeID_new',
+            new_data_df = new_data_df[['SourceID_new', 'RowKey_new', 'AttributeID_new',
                                        'AttributeValue_new', 'HashValue_new', 'InsertedBy_new',
                                        'ModifiedBy_new', 'ValidFrom_new', 'ValidTo_new',
                                        'ResetDQStage_new', process_no_new]]
@@ -187,19 +204,19 @@ class StartBT:
             bt_modified_expired[['ValidTo_cbt', 'ModifiedBy_cbt']] = \
                 [datetime.datetime.now().isoformat(), 'ETL']
 
-            bt_modified_df = bt_modified_expired[['bt_id', 'SourceID_new', 'RowKey_new', 'AttributeID_new',
+            bt_modified_df = bt_modified_expired[['SourceID_new', 'RowKey_new', 'AttributeID_new',
                                                   'AttributeValue_new', 'HashValue_new', 'InsertedBy_new',
                                                   'ModifiedBy_new', 'ValidFrom_new', 'ValidTo_new',
                                                   'ResetDQStage_new', process_no_new]]
             bt_modified_df.columns = bt_columns
 
             bt_expired_data_df = bt_modified_expired[
-                ['bt_id', 'SourceID_cbt', 'RowKey_cbt', 'AttributeID_cbt',
+                ['SourceID_cbt', 'RowKey_cbt', 'AttributeID_cbt',
                  'AttributeValue_cbt', 'HashValue_cbt', 'InsertedBy_cbt',
                  'ModifiedBy_cbt', 'ValidFrom_cbt', 'ValidTo_cbt', 'ResetDQStage_cbt', process_no_cbt]]
 
             bt_same_df = bt_same[
-                ['bt_id', 'SourceID_cbt', 'RowKey_cbt', 'AttributeID_cbt',
+                ['SourceID_cbt', 'RowKey_cbt', 'AttributeID_cbt',
                  'AttributeValue_cbt', 'HashValue_cbt', 'InsertedBy_cbt',
                  'ModifiedBy_cbt', 'ValidFrom_cbt', 'ValidTo_cbt', 'ResetDQStage_cbt', process_no_cbt]]
 
@@ -207,7 +224,8 @@ class StartBT:
             bt_same_df.columns = bt_columns
 
             # expired_ids = bt_modified_expired[['_id']]
-            expired_ids = bt_modified_expired['bt_id'].values
+            # expired_ids = bt_modified_expired['bt_id'].values
+            expired_ids = None
 
         else:
             bt_expired_data_df = pd.DataFrame()
@@ -253,14 +271,18 @@ class StartBT:
             save_to_parquet(new_data_df, bt_current_data_set, bt_partition_cols, bt_object_cols)
 
     def get_bt_current_data(self, bt_dataset, columns, filter):
-        bt_df = pd.DataFrame()
-        for df in read_batches_from_parquet(bt_dataset,
-                                            columns,
-                                            int(self.parameters_dict['bt_batch_size']),
-                                            True, #self.cpu_num_workers,
-                                            filter=filter):
-            if not df.empty:
-                bt_df = bt_df.append(df)
+        # bt_df = pd.DataFrame()
+        bt_df = read_all_from_parquet_delayed(dataset=bt_dataset,
+                                                      columns=columns,
+                                                      # use_threads=True,#self.cpu_num_workers,
+                                                      filter=filter).compute()
+        # for df in read_batches_from_parquet(bt_dataset,
+        #                                     columns,
+        #                                     int(self.parameters_dict['bt_batch_size']),
+        #                                     True, #self.cpu_num_workers,
+        #                                     filter=filter):
+        #     if not df.empty:
+        #         bt_df = bt_df.append(df)
         return bt_df
 
     def etl_be(self, source_id, bt_current_collection, bt_collection, source_collection, process_no, cpu_num_workers):
@@ -269,26 +291,38 @@ class StartBT:
         base_source_data_set = self.src_db_path + source_collection
         source_data_set = base_source_data_set + '\\SourceID=' + str(source_id) + '\\' + self.dnx_config.process_no_column_name + '=' + process_no
 
-        # bt_current_data_ddf = pd.DataFrame()
+        bt_current_data_ddf = pd.DataFrame()
         # bt_current_data_df = pd.DataFrame()
         bt_current_collection_old = base_bt_current_data_set + "_old"
         if int(self.parameters_dict['get_delta']) == 1:
             if is_dir_exists(bt_current_collection_old):
-                pass
-                # bt_current_data_ddf = read_all_from_parquet(dataset_root_path=bt_current_collection_old,
-                #                                            columns=self.bt_columns, filter=None, nthreads=self.cpu_num_workers)
+                # for batch_no, get_source_data in enumerate(self.get_chunks_from_source_data(source_id, source_data_set)):
+                #     source_data_df, bt_ids = get_source_data[0], get_source_data[1]
+                #     save_to_parquet(source_data_df, bt_current_data_set, bt_partition_cols, bt_object_cols)
+                # bt_source_data_ddf = self.get_all_from_source_data(source_id, source_data_set)
+                bt_current_data_ddf = read_all_from_parquet_delayed(dataset=bt_current_collection_old,
+                                                                    columns=bt_columns, filter=None, nthreads=self.cpu_num_workers)
+                # print(bt_current_data_ddf.index)
+
 
         if is_dir_exists(source_data_set):
-            for batch_no, get_source_data in enumerate(self.get_source_data(source_id,source_data_set)):
+            for batch_no, get_source_data in enumerate(self.get_chunks_from_source_data(source_id, source_data_set)):
                 bt_current_data_set = base_bt_current_data_set
                 source_data_df, bt_ids = get_source_data[0], get_source_data[1]
+
                 # source_data_df['batch_no'] = batch_no
 
                 if int(self.parameters_dict['get_delta']) == 1 and is_dir_exists(bt_current_collection_old):
-                    filter_bt_ids = [['bt_id', bt_ids], ]
-                    bt_current_data_df = self.get_bt_current_data(bt_current_collection_old, bt_columns,filter_bt_ids)
+                    # filter_bt_ids = [['bt_id', bt_ids], ]
+                    # bt_current_data_df = self.get_bt_current_data(bt_current_collection_old, bt_columns,filter_bt_ids)
                     # bt_current_data_df = bt_current_data_ddf.loc[bt_current_data_ddf['bt_id'].isin(bt_ids)]
-                    # bt_current_data_df = bt_current_data_df.compute()
+                    # bt_current_data_df = bt_current_data_ddf.loc[bt_ids]
+                    bt_ids = bt_ids.set_index('bt_id')
+                    bt_current_data_df = bt_current_data_ddf.merge(bt_ids, left_index=True, right_index=True)
+                    # bt_current_data_ddf = bt_current_data_ddf.drop(bt_ids.index)
+
+                    bt_current_data_df = bt_current_data_df.compute()
+                    # print(bt_ids,bt_current_data_df)
 
                     # print('len_bt_current_data_df', len(bt_current_data_df.index))
                     if not bt_current_data_df.empty:
