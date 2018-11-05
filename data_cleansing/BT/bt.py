@@ -85,6 +85,7 @@ class StartBT:
                 delete_dataset(source_data_set)
                 delete_dataset(src_f_data_set)
                 for file_seq, chunk_data in enumerate(get_chuncks_of_data_from_source(source_url, source_schema, source_query, int(self.parameters_dict['source_batch_size']))):
+                    chunk_data = delayed(chunk_data)
                     delayed_prepare_and_save_src_data = delayed(self.prepare_and_save_src_data)(source_id, chunk_data, row_key_column_name, f_col, no_of_cores, source_data_set, src_f_data_set)
                     parallel_prepare_and_save_src_data.append(delayed_prepare_and_save_src_data)
         compute(*parallel_prepare_and_save_src_data, num_workers=cpu_num_workers)
@@ -155,7 +156,7 @@ class StartBT:
 
     def get_chunks_from_source_data(self, source_id, source_data_set):
         att_query_df = self.get_att_ids_df(source_id)
-        for chunk_data in read_batches_from_parquet(source_data_set, None, int(self.parameters_dict['temp_source_batch_size']), self.cpu_num_workers):
+        for chunk_data in read_batches_from_parquet(source_data_set, None, int(self.parameters_dict['temp_source_batch_size']), True):
             melt_chunk_data = self.melt_query_result(chunk_data, source_id)
             attach_attribute_id_result = self.attach_attribute_id(att_query_df, melt_chunk_data)
 

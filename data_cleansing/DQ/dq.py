@@ -83,7 +83,7 @@ class StartDQ:
 
     def get_tmp_rowkeys(self, result_data_set_tmp):
         # print('result_data_set_tmp', result_data_set_tmp)
-        for df in read_batches_from_parquet(result_data_set_tmp, None, int(self.parameters_dict['bt_batch_size']), self.cpu_num_workers):
+        for df in read_batches_from_parquet(result_data_set_tmp, None, int(self.parameters_dict['bt_batch_size']), True):
             yield df['RowKey']
 
     def get_bt_current_data(self, src_f_data, bt_dataset, source_id, category_no, be_att_id, join_with_f):
@@ -253,42 +253,34 @@ class StartDQ:
         core_tables = get_be_core_table_names(self.dnx_config.config_db_url, self.dnx_config.org_business_entities_collection, be_id)
         bt_current_dataset = self.dnx_db_path + core_tables[0]
         if is_dir_exists(bt_current_dataset):
+            next_cat = self.get_next_be_att_id_category(source_id, be_att_id, category_no)
+            current_category_dataset = bt_current_dataset + "\\SourceID=" + str(source_id) + "\\AttributeID=" + str(be_att_id) + "\\ResetDQStage=" + str(category_no)
+            next_category_dataset = bt_current_dataset + "\\SourceID=" + str(source_id) + "\\AttributeID=" + str(be_att_id) + "\\ResetDQStage=" + str(next_cat)
             dq_result_dataset = self.result_db_path + core_tables[3]
+
             partioned_dq_result_dataset = dq_result_dataset + \
                                           "\\SourceID=" + str(source_id) + \
                                           "\\AttributeID=" + str(be_att_id) + \
                                           "\\ResetDQStage=" + str(category_no) + \
                                           "\\is_issue=0"
 
-            next_cat = self.get_next_be_att_id_category(source_id, be_att_id, category_no)
-
             if is_dir_exists(partioned_dq_result_dataset):
-                # rowkeys = read_all_from_parquet(partioned_dq_result_dataset, ['RowKey'], self.cpu_num_workers)
                 rowkeys = read_all_from_parquet_delayed(partioned_dq_result_dataset, ['RowKey'], self.cpu_num_workers).compute()
-                # filter = [[('SourceID','=', source_id),
-                #            ('AttributeID','=', be_att_id),
-                #            ('ResetDQStage','=', category_no),
-                #            ('is_issue','=', 0)]]
-                # rowkeys = read_partioned_data_from_parquet(partioned_dq_result_dataset, ['RowKey'], filter=filter)
-
-                rowkeys = rowkeys.set_index('RowKey')
-                current_category_dataset = bt_current_dataset + "\\SourceID=" + str(source_id) + "\\AttributeID=" + str(be_att_id) + "\\ResetDQStage=" + str(category_no)
-                next_category_dataset = bt_current_dataset + "\\SourceID=" + str(source_id) + "\\AttributeID=" + str(be_att_id) + "\\ResetDQStage=" + str(next_cat)
-
                 suffix = "_old"
-                # print(current_category_dataset)
                 if is_dir_exists(current_category_dataset):
                     bt_dataset_old = self.switch_dataset(current_category_dataset, suffix)
-
-                    for bt_current in read_batches_from_parquet(bt_dataset_old, None, int(self.parameters_dict['bt_batch_size']), self.cpu_num_workers):
-                        bt_current_passed = bt_current[bt_current['RowKey'].isin(rowkeys.index)]
-                        # bt_current_failed = bt_current[~bt_current['bt_id'].isin(bt_current_passed.index)]
-                        bt_current_failed = bt_current[~bt_current.index.isin(bt_current_passed.index)]
-
-                        save_to_parquet(bt_current_failed, current_category_dataset, partition_cols=None, string_columns=bt_partioned_object_cols)
-                        save_to_parquet(bt_current_passed, next_category_dataset, partition_cols=None, string_columns=bt_partioned_object_cols)
-
+                    self.upgrade_rowkeys(rowkeys, bt_dataset_old, current_category_dataset, next_category_dataset)
                     delete_dataset(bt_dataset_old)
+
+    def upgrade_rowkeys(self, rowkey, bt_dataset_old, current_category_dataset, next_category_dataset):
+        rowkeys = rowkey
+        rowkeys = rowkeys.set_index('RowKey')
+        for bt_current in read_batches_from_parquet(bt_dataset_old, None, int(self.parameters_dict['bt_batch_size']), True):
+            bt_current_passed = bt_current[bt_current['RowKey'].isin(rowkeys.index)]
+            bt_current_failed = bt_current[~bt_current.index.isin(bt_current_passed.index)]
+
+            save_to_parquet(bt_current_failed, current_category_dataset, partition_cols=None, string_columns=bt_partioned_object_cols)
+            save_to_parquet(bt_current_passed, next_category_dataset, partition_cols=None, string_columns=bt_partioned_object_cols)
 
     def show_results(self):
         print("**********************************************************************")

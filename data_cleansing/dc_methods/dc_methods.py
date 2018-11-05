@@ -41,8 +41,18 @@ def is_dir_exists(path):
     return os.path.exists(path)
 
 
-def get_files_in_dir(path):
-    files = [name for name in os.listdir(path) if os.path.isfile(os.path.join(path, name))]
+def get_files_in_dir(path, in_depth=False):
+    if not in_depth:
+        files = [name for name in os.listdir(path) if os.path.isfile(os.path.join(path, name))]
+    else:
+        # r=root, d=directories, f = files
+        files =[]
+        for r, d, f in os.walk(path):
+            for file in f:
+                files.append(os.path.join(r, file))
+                # if ".docx" in file:
+                #     print(os.path.join(r, file))
+
     return files
 
 
@@ -353,26 +363,5 @@ def get_attribute_value_by_rowkey(bt_dataset, filters=None):
         #     return pd.DataFrame()
 #
 if __name__ == '__main__':
-    save_bt_current_data_set = "C:\\dc\\parquet_db\DNX\\test_bt_current_4383_10"
-
-
-    x = [[('AttributeID', '=', 700), ],
-         [('AttributeID', '=', 800), ]]
-
-    list_of_att = [100,200,300,400,500,600,700,800,900,1000,2143]
-
-    pa_filter = []
-    for i in range(len(list_of_att)):
-        tuplef = ('AttributeID', '=', list_of_att[i])
-        list_tuplef = [tuplef]
-        pa_filter.append(list_tuplef)
-
-    print(pa_filter)
-
-    pa_filter = [[('bt_id', '=', '9001520e2b30f1ae17d128db9187b36b9bdb022c6a84d44')],]
-    # pa_filter = [[('AttributeID', '=', 520)], ]
-    df = read_all_from_parquet2(dataset_root_path="C:\\dc\\parquet_db\\DNX\\bt_current_9898_100",
-                                columns=['bt_id','AttributeID'],
-                                nthreads=4, filter=pa_filter)
-    print(df)
-
+    files = get_files_in_dir("C:\\dc\\parquet_db\\Result\\result_4383_10\\SourceID=100102\\AttributeID=1000\\ResetDQStage=1\\is_issue=0", True)
+    print(files)
