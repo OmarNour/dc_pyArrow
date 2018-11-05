@@ -296,35 +296,22 @@ class StartBT:
         bt_current_collection_old = base_bt_current_data_set + "_old"
         if int(self.parameters_dict['get_delta']) == 1:
             if is_dir_exists(bt_current_collection_old):
-                # for batch_no, get_source_data in enumerate(self.get_chunks_from_source_data(source_id, source_data_set)):
-                #     source_data_df, bt_ids = get_source_data[0], get_source_data[1]
-                #     save_to_parquet(source_data_df, bt_current_data_set, bt_partition_cols, bt_object_cols)
-                # bt_source_data_ddf = self.get_all_from_source_data(source_id, source_data_set)
                 bt_current_data_ddf = read_all_from_parquet_delayed(dataset=bt_current_collection_old,
-                                                                    columns=bt_columns, filter=None, nthreads=self.cpu_num_workers)
-                # print(bt_current_data_ddf.index)
-
+                                                                    columns=bt_columns,
+                                                                    filter=None,
+                                                                    nthreads=self.cpu_num_workers)
 
         if is_dir_exists(source_data_set):
             for batch_no, get_source_data in enumerate(self.get_chunks_from_source_data(source_id, source_data_set)):
                 bt_current_data_set = base_bt_current_data_set
                 source_data_df, bt_ids = get_source_data[0], get_source_data[1]
 
-                # source_data_df['batch_no'] = batch_no
-
                 if int(self.parameters_dict['get_delta']) == 1 and is_dir_exists(bt_current_collection_old):
-                    # filter_bt_ids = [['bt_id', bt_ids], ]
-                    # bt_current_data_df = self.get_bt_current_data(bt_current_collection_old, bt_columns,filter_bt_ids)
-                    # bt_current_data_df = bt_current_data_ddf.loc[bt_current_data_ddf['bt_id'].isin(bt_ids)]
-                    # bt_current_data_df = bt_current_data_ddf.loc[bt_ids]
+
                     bt_ids = bt_ids.set_index('bt_id')
                     bt_current_data_df = bt_current_data_ddf.merge(bt_ids, left_index=True, right_index=True)
-                    # bt_current_data_ddf = bt_current_data_ddf.drop(bt_ids.index)
-
                     bt_current_data_df = bt_current_data_df.compute()
-                    # print(bt_ids,bt_current_data_df)
 
-                    # print('len_bt_current_data_df', len(bt_current_data_df.index))
                     if not bt_current_data_df.empty:
                         self.load_data(source_data_df, bt_current_data_df, bt_data_set, bt_current_data_set)
                     else:
