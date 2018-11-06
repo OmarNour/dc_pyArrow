@@ -93,11 +93,9 @@ class StartBT:
     def prepare_and_save_src_data(self, source_id, chunk_data, row_key_column_name, f_col, no_of_cores, source_data_set, src_f_data_set):
         chunk_data['SourceID'] = source_id
         chunk_data = self.prepare_source_df(chunk_data, row_key_column_name, self.dnx_config.process_no_column_name, no_of_cores)
-        # print('chunk_data', chunk_data['rowkey'])
         save_to_parquet(chunk_data, source_data_set, partition_cols=['SourceID', self.dnx_config.process_no_column_name])
 
         chunk_data = chunk_data.rename(index=str, columns=f_col).drop(['process_no'], axis=1)
-        # print('chunk_data2', chunk_data['rowkey'])
         save_to_parquet(chunk_data, src_f_data_set, partition_cols=['SourceID'])
 
     def melt_query_result(self,df_result,source_id):
