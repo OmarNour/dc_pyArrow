@@ -309,13 +309,12 @@ class StartBT:
                                                                     nthreads=self.cpu_num_workers)
 
         if is_dir_exists(source_data_set):
-            parallel_delayed_load_data = []
+            # parallel_delayed_load_data = []
             for batch_no, get_source_data in enumerate(self.get_chunks_from_source_data(source_id, source_data_set)):
                 bt_current_data_set = base_bt_current_data_set
                 source_data_df, bt_ids = delayed(get_source_data[0]), delayed(get_source_data[1])
                 delayed_load_data = delayed(self.load_data)(source_data_df, bt_current_data_ddf, bt_data_set, bt_current_data_set, bt_current_collection_old, bt_ids)
-                parallel_delayed_load_data.append(delayed_load_data)
-            compute(*parallel_delayed_load_data, num_workers=cpu_num_workers)
+                self.parallel_delayed_load_data.append(delayed_load_data)
 
     def get_be_ids(self):
         be_att_ids_query = "select distinct be_att_id from " + self.dnx_config.be_attributes_data_rules_lvls_collection + " where active = 1"
@@ -344,6 +343,7 @@ class StartBT:
         be_ids = self.get_be_ids()
         self.process_no = process_no
         self.cpu_num_workers = cpu_num_workers
+        self.parallel_delayed_load_data = []
         parallel_etl_be = []
         for i, be_id in be_ids.iterrows():
             be_id = be_id['be_id']
@@ -361,6 +361,7 @@ class StartBT:
                 parallel_etl_be.append(delayed_etl_be)
         # print('execute parallel ETLs')
         compute(*parallel_etl_be, num_workers=cpu_num_workers)
+        compute(*self.parallel_delayed_load_data, num_workers=cpu_num_workers)
         print('BT elapsed time:', datetime.datetime.now() - start_time)
         # return (mapping_be_source_ids)
 
