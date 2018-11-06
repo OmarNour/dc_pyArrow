@@ -248,28 +248,34 @@ class StartBT:
               'time elapsed:', end_time - start_time)
         return bt_modified_df, bt_expired_data_df, new_data_df, etl_occurred, expired_ids, bt_same_df
 
-    def load_data(self, p_source_data, p_current_data, bt_data_set, bt_current_data_set):
+    def load_data(self, p_source_data, p_current_data, bt_data_set, bt_current_data_set, bt_current_collection_old, p_bt_ids):
+        if int(self.parameters_dict['get_delta']) == 1 and is_dir_exists(bt_current_collection_old):
+            bt_ids = p_bt_ids.set_index('bt_id')
+            bt_current_data_df = p_current_data.merge(bt_ids, left_index=True, right_index=True)
+            # bt_current_data_df = bt_current_data_df.compute()
 
-        get_delta_result = self.get_delta(p_source_data, p_current_data)
-        same_df = get_delta_result[5]
-        save_to_parquet(same_df, bt_current_data_set, bt_partition_cols, bt_object_cols)
+            get_delta_result = self.get_delta(p_source_data, bt_current_data_df)
+            same_df = get_delta_result[5]
+            save_to_parquet(same_df, bt_current_data_set, bt_partition_cols, bt_object_cols)
 
-        if get_delta_result[3] in (0,2): #etl_occurred
-            assert len(get_delta_result[0]) == len(get_delta_result[1])
+            if get_delta_result[3] in (0,2): #etl_occurred
+                assert len(get_delta_result[0]) == len(get_delta_result[1])
 
-            modified_df = get_delta_result[0]
-            expired_df = get_delta_result[1]
-            # expired_ids = get_delta_result[4]
+                modified_df = get_delta_result[0]
+                expired_df = get_delta_result[1]
+                # expired_ids = get_delta_result[4]
 
-            # modified_df['batch_no'] = batch_no
-            save_to_parquet(modified_df, bt_current_data_set, bt_partition_cols, bt_object_cols)
+                # modified_df['batch_no'] = batch_no
+                save_to_parquet(modified_df, bt_current_data_set, bt_partition_cols, bt_object_cols)
 
-            # expired_df['batch_no'] = batch_no
-            save_to_parquet(expired_df, bt_data_set, bt_partition_cols, bt_object_cols)
+                # expired_df['batch_no'] = batch_no
+                save_to_parquet(expired_df, bt_data_set, bt_partition_cols, bt_object_cols)
 
-        if get_delta_result[3] in (1, 2):  # etl_occurred
-            new_data_df = get_delta_result[2]
-            save_to_parquet(new_data_df, bt_current_data_set, bt_partition_cols, bt_object_cols)
+            if get_delta_result[3] in (1, 2):  # etl_occurred
+                new_data_df = get_delta_result[2]
+                save_to_parquet(new_data_df, bt_current_data_set, bt_partition_cols, bt_object_cols)
+        else:
+            save_to_parquet(p_source_data, bt_current_data_set, bt_partition_cols, bt_object_cols)
 
     def get_bt_current_data(self, bt_dataset, columns, filter):
         # bt_df = pd.DataFrame()
@@ -303,23 +309,13 @@ class StartBT:
                                                                     nthreads=self.cpu_num_workers)
 
         if is_dir_exists(source_data_set):
+            parallel_delayed_load_data = []
             for batch_no, get_source_data in enumerate(self.get_chunks_from_source_data(source_id, source_data_set)):
                 bt_current_data_set = base_bt_current_data_set
-                source_data_df, bt_ids = get_source_data[0], get_source_data[1]
-
-                if int(self.parameters_dict['get_delta']) == 1 and is_dir_exists(bt_current_collection_old):
-
-                    bt_ids = bt_ids.set_index('bt_id')
-                    bt_current_data_df = bt_current_data_ddf.merge(bt_ids, left_index=True, right_index=True)
-                    bt_current_data_df = bt_current_data_df.compute()
-
-                    if not bt_current_data_df.empty:
-                        self.load_data(source_data_df, bt_current_data_df, bt_data_set, bt_current_data_set)
-                    else:
-                        save_to_parquet(source_data_df, bt_current_data_set, bt_partition_cols, bt_object_cols)
-
-                else:
-                    save_to_parquet(source_data_df, bt_current_data_set, bt_partition_cols, bt_object_cols)
+                source_data_df, bt_ids = delayed(get_source_data[0]), delayed(get_source_data[1])
+                delayed_load_data = delayed(self.load_data)(source_data_df, bt_current_data_ddf, bt_data_set, bt_current_data_set, bt_current_collection_old, bt_ids)
+                parallel_delayed_load_data.append(delayed_load_data)
+            compute(*parallel_delayed_load_data, num_workers=cpu_num_workers)
 
     def get_be_ids(self):
         be_att_ids_query = "select distinct be_att_id from " + self.dnx_config.be_attributes_data_rules_lvls_collection + " where active = 1"
