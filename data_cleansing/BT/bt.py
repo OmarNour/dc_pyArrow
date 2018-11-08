@@ -7,6 +7,7 @@ import data_cleansing.CONFIG.Config as DNXConfig
 import datetime
 import pandas as pd
 from dask import compute, delayed
+from dask.diagnostics import ProgressBar
 
 class StartBT:
     def __init__(self):
@@ -88,7 +89,8 @@ class StartBT:
                     chunk_data = delayed(chunk_data)
                     delayed_prepare_and_save_src_data = delayed(self.prepare_and_save_src_data)(source_id, chunk_data, row_key_column_name, f_col, no_of_cores, source_data_set, src_f_data_set)
                     parallel_prepare_and_save_src_data.append(delayed_prepare_and_save_src_data)
-        compute(*parallel_prepare_and_save_src_data, num_workers=cpu_num_workers)
+        with ProgressBar():
+            compute(*parallel_prepare_and_save_src_data, num_workers=cpu_num_workers)
 
     def prepare_and_save_src_data(self, source_id, chunk_data, row_key_column_name, f_col, no_of_cores, source_data_set, src_f_data_set):
         chunk_data['SourceID'] = source_id
@@ -333,7 +335,8 @@ class StartBT:
 
                 delayed_load_data = delayed(self.load_data)(source_data_df, bt_current_data_df, bt_data_set, bt_current_data_set, bt_current_collection_old, None)
                 parallel_delayed_load_data.append(delayed_load_data)
-            compute(*parallel_delayed_load_data, num_workers=cpu_num_workers)
+            with ProgressBar():
+                compute(*parallel_delayed_load_data, num_workers=cpu_num_workers)
 
     def get_be_ids(self):
         be_att_ids_query = "select distinct be_att_id from " + self.dnx_config.be_attributes_data_rules_lvls_collection + " where active = 1"
@@ -379,7 +382,8 @@ class StartBT:
                 delayed_etl_be = delayed(self.etl_be)(source_id, bt_current_collection, bt_collection, source_collection, process_no, cpu_num_workers)
                 parallel_etl_be.append(delayed_etl_be)
         # print('execute parallel ETLs')
-        compute(*parallel_etl_be, num_workers=cpu_num_workers)
+        with ProgressBar():
+            compute(*parallel_etl_be, num_workers=cpu_num_workers)
 
         print('BT elapsed time:', datetime.datetime.now() - start_time)
         # return (mapping_be_source_ids)

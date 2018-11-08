@@ -112,7 +112,7 @@ def save_to_parquet(df, dataset_root_path, partition_cols=None, string_columns=N
                             use_dictionary=False
                             )
         # flavor = 'spark'
-        print("{:,}".format(len(df.index)), 'records inserted into', dataset_root_path, 'in', datetime.datetime.now() - start_time)
+        # print("{:,}".format(len(df.index)), 'records inserted into', dataset_root_path, 'in', datetime.datetime.now() - start_time)
 
 
 def read_batches_from_parquet(dataset_root_path, columns, batch_size, use_threads, filter=None, filter_index=True):

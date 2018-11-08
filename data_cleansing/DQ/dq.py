@@ -6,6 +6,7 @@ from data_cleansing.dc_methods.dc_methods import get_all_data_from_source, get_b
 import data_cleansing.DQ.data_rules.rules as dr
 # from pydrill.client import PyDrill
 # import swifter
+from dask.diagnostics import ProgressBar
 from dask import compute, delayed, dataframe as dd
 
 
@@ -158,9 +159,9 @@ class StartDQ:
                                be_att_id, rule_id, g_result, current_lvl_no, next_pass, next_fail, join_with_f, kwargs):
 
 
-        print('++++++++ source_id:', source_id, 'be_att_dr_id:', be_att_dr_id, 'category_no:', category_no)
-        print('++++++++ be_att_id:', be_att_id, 'rule_id:', rule_id, 'g_result:', g_result, 'current_lvl_no:', current_lvl_no,
-              'next_pass:', next_pass, 'next_fail:', next_fail)
+        # print('++++++++ source_id:', source_id, 'be_att_dr_id:', be_att_dr_id, 'category_no:', category_no)
+        # print('++++++++ be_att_id:', be_att_id, 'rule_id:', rule_id, 'g_result:', g_result, 'current_lvl_no:', current_lvl_no,
+        #       'next_pass:', next_pass, 'next_fail:', next_fail)
 
         result_data_set_tmp = result_data_set_tmp+"_"+str(be_att_dr_id)
 
@@ -300,8 +301,8 @@ class StartDQ:
                 df2.columns = ['indx', 'SourceID', 'AttributeID', 'Category_no', 'be_att_dr_id', 'rule_id', 'is_issue', 'bt_id']
                 df2 = df2.groupby(['SourceID', 'AttributeID', 'Category_no', 'be_att_dr_id', 'rule_id', 'is_issue']).agg({'bt_id': ['count']})
                 df2.columns = ["cells#"]
-
-                print(df2.compute())
+                with ProgressBar():
+                    print(df2.compute())
                 print("----------------------------------------------------------------------")
         print("**********************************************************************")
 
@@ -322,8 +323,9 @@ class StartDQ:
             for j, data_rule in source_category_rules.iterrows():
                 delayed_execute_data_rules = delayed(self.execute_data_rules)(data_rule, category_no)
                 parallel_execute_data_rules.append(delayed_execute_data_rules)
-            print('start compute parallel_execute_data_rules!')
-            compute(*parallel_execute_data_rules, num_workers=self.cpu_num_workers)
+            print('execute rules for category #', category_no)
+            with ProgressBar():
+                compute(*parallel_execute_data_rules, num_workers=self.cpu_num_workers)
 
             source_id_be_att_ids = self.get_be_att_ids(category_no)
             parallel_execute_upgrade_category = []
@@ -332,7 +334,8 @@ class StartDQ:
                 source_id = source_id_be_att_id['be_data_source_id']
                 delayed_upgrade = delayed(self.upgrade_category)(source_id, category_no, be_att_id)
                 parallel_execute_upgrade_category.append(delayed_upgrade)
-            print('start compute parallel_execute_upgrade_category!')
-            compute(*parallel_execute_upgrade_category, num_workers=self.cpu_num_workers)
+            print('upgrade from category #', category_no)
+            with ProgressBar():
+                compute(*parallel_execute_upgrade_category, num_workers=self.cpu_num_workers)
 
         self.show_results()
