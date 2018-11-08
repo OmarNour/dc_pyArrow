@@ -97,9 +97,12 @@ class StartDQ:
 
             for file_name in get_files_in_dir(complete_dataset):
                 pa_file_path = complete_dataset+"\\"+file_name
+                # bt_current_df = read_batches_from_parquet(dataset_root_path=pa_file_path,
+                #                                           columns=['bt_id', 'RowKey', 'AttributeValue'],
+                #                                           batch_size=int(self.parameters_dict['bt_batch_size']),
+                #                                           use_threads=True, filter=None, filter_index=True)
                 bt_current_df = read_all_from_parquet_delayed(dataset=pa_file_path,
                                                               columns=['bt_id', 'RowKey', 'AttributeValue'],
-                                                              # use_threads=True,#self.cpu_num_workers,
                                                               filter=None)
 
                 # src_f_data_df = src_f_data[src_f_data['rowkey'].isin(bt_current_df['RowKey'])]
@@ -269,18 +272,22 @@ class StartDQ:
                 suffix = "_old"
                 if is_dir_exists(current_category_dataset):
                     bt_dataset_old = self.switch_dataset(current_category_dataset, suffix)
-                    self.upgrade_rowkeys(rowkeys, bt_dataset_old, current_category_dataset, next_category_dataset)
+
+                    rowkeys = rowkeys.set_index('RowKey')
+                    parallel_delayed_upgrade_rowkeys = []
+                    for bt_current in read_batches_from_parquet(bt_dataset_old, None, int(self.parameters_dict['bt_batch_size']), True):
+                        delayed_upgrade_rowkeys = delayed(self.upgrade_rowkeys)(delayed(bt_current), delayed(rowkeys), current_category_dataset, next_category_dataset)
+                        parallel_delayed_upgrade_rowkeys.append(delayed_upgrade_rowkeys)
+                    compute(*parallel_delayed_upgrade_rowkeys, num_workers=self.cpu_num_workers)
                     delete_dataset(bt_dataset_old)
 
-    def upgrade_rowkeys(self, rowkey, bt_dataset_old, current_category_dataset, next_category_dataset):
-        rowkeys = rowkey
-        rowkeys = rowkeys.set_index('RowKey')
-        for bt_current in read_batches_from_parquet(bt_dataset_old, None, int(self.parameters_dict['bt_batch_size']), True):
-            bt_current_passed = bt_current[bt_current['RowKey'].isin(rowkeys.index)]
-            bt_current_failed = bt_current[~bt_current.index.isin(bt_current_passed.index)]
+    def upgrade_rowkeys(self, bt_current, rowkeys, current_category_dataset, next_category_dataset):
+        bt_current_passed = bt_current[bt_current['RowKey'].isin(rowkeys.index)]
+        bt_current_failed = bt_current[~bt_current.index.isin(bt_current_passed.index)]
 
-            save_to_parquet(bt_current_failed, current_category_dataset, partition_cols=None, string_columns=bt_partioned_object_cols)
-            save_to_parquet(bt_current_passed, next_category_dataset, partition_cols=None, string_columns=bt_partioned_object_cols)
+        save_to_parquet(bt_current_failed, current_category_dataset, partition_cols=None, string_columns=bt_partioned_object_cols)
+        save_to_parquet(bt_current_passed, next_category_dataset, partition_cols=None, string_columns=bt_partioned_object_cols)
+
 
     def show_results(self):
         print("**********************************************************************")
