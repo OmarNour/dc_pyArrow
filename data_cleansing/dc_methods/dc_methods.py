@@ -10,6 +10,7 @@ import os, sys
 import dask.dataframe as dd
 
 
+# src_bt_ids = []
 bt_columns = ['SourceID', 'RowKey', 'AttributeID', 'AttributeValue',
                            'HashValue', 'InsertedBy', 'ModifiedBy', 'ValidFrom', 'ValidTo',
                            'ResetDQStage', 'process_no']
@@ -114,17 +115,22 @@ def save_to_parquet(df, dataset_root_path, partition_cols=None, string_columns=N
         print("{:,}".format(len(df.index)), 'records inserted into', dataset_root_path, 'in', datetime.datetime.now() - start_time)
 
 
-def read_batches_from_parquet(dataset_root_path, columns, batch_size, use_threads, filter=None):
+def read_batches_from_parquet(dataset_root_path, columns, batch_size, use_threads, filter=None, filter_index=True):
 
     for table in (table for table in pq.read_table(dataset_root_path,
                                                    columns=columns,
                                                    use_threads=use_threads,
-                                                   use_pandas_metadata=False).to_batches(batch_size)):
+                                                   use_pandas_metadata=True).to_batches(batch_size)):
         df = table.to_pandas()
 
         if filter:
+            # print('dfdf.info', df.index)
+            # print('filterfilter', filter)
             for i in filter:
-                df = df[df[i[0]].isin(i[1])]
+                if filter_index:
+                    df = df[df.index.isin(i[1])]
+                else:
+                    df = df[df[i[0]].isin(i[1])]
 
         if not df.empty:
             yield df
@@ -149,7 +155,7 @@ def read_all_from_parquet(dataset, columns, use_threads, filter=None):
     return df
 
 
-def read_all_from_parquet_delayed(dataset, columns=None, nthreads=4, filter=None):
+def read_all_from_parquet_delayed(dataset, columns=None, filter=None):
     df = dd.read_parquet(path=dataset, columns=columns, engine='pyarrow')
     if filter:
         for i in filter:

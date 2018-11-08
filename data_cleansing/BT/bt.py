@@ -155,10 +155,11 @@ class StartBT:
     def get_chunks_from_source_data(self, source_id, source_data_set):
         att_query_df = self.get_att_ids_df(source_id)
         for chunk_data in read_batches_from_parquet(source_data_set, None, int(self.parameters_dict['temp_source_batch_size']), True):
-            melt_chunk_data = self.melt_query_result(chunk_data, source_id)
-            attach_attribute_id_result = self.attach_attribute_id(att_query_df, melt_chunk_data)
+            melt_chunk_data = delayed(self.melt_query_result)(delayed(chunk_data), source_id)
+            attach_attribute_id_result = delayed(self.attach_attribute_id)(att_query_df, melt_chunk_data)
 
             source_data_df, bt_ids = attach_attribute_id_result[0], attach_attribute_id_result[1]
+            # print('bt_idsbt_idsbt_idsbt_idsbt_ids', bt_ids)
             yield source_data_df, bt_ids
 
     def switch_bt_current_dataset(self, bt_current_collection):
@@ -246,13 +247,19 @@ class StartBT:
               'time elapsed:', end_time - start_time)
         return bt_modified_df, bt_expired_data_df, new_data_df, etl_occurred, expired_ids, bt_same_df
 
-    def load_data(self, p_source_data, p_current_data, bt_data_set, bt_current_data_set, bt_current_collection_old, p_bt_ids):
+    def load_data(self, p_source_data, p_current_data, bt_data_set, bt_current_data_set, bt_current_collection_old, p_bt_ids=None):
         if int(self.parameters_dict['get_delta']) == 1 and is_dir_exists(bt_current_collection_old):
-            bt_ids = p_bt_ids.set_index('bt_id')
-            bt_current_data_df = p_current_data.merge(bt_ids, left_index=True, right_index=True)
+            # bt_ids = p_bt_ids.set_index('bt_id')
+            # bt_current_data_df = p_current_data.merge(bt_ids, left_index=True, right_index=True)
             # bt_current_data_df = bt_current_data_df.compute()
-
-            get_delta_result = self.get_delta(p_source_data, bt_current_data_df)
+            # print('p_bt_idsp_bt_ids', p_bt_ids)
+            # filter_bt_ids = [['bt_id', p_bt_ids], ]
+            # bt_current_data_df = self.get_bt_current_data(bt_current_collection_old, bt_columns, filter_bt_ids)
+            # print('bt_current_data_df', len(bt_current_data_df.index))
+            # print(bt_current_data_df.index)
+            # print('p_source_data', len(p_source_data.index))
+            # print(p_source_data.index)
+            get_delta_result = self.get_delta(p_source_data, p_current_data)
             same_df = get_delta_result[5]
             save_to_parquet(same_df, bt_current_data_set, bt_partition_cols, bt_object_cols)
 
@@ -275,19 +282,24 @@ class StartBT:
         else:
             save_to_parquet(p_source_data, bt_current_data_set, bt_partition_cols, bt_object_cols)
 
-    def get_bt_current_data(self, bt_dataset, columns, filter):
-        # bt_df = pd.DataFrame()
-        bt_df = read_all_from_parquet_delayed(dataset=bt_dataset,
-                                                      columns=columns,
-                                                      # use_threads=True,#self.cpu_num_workers,
-                                                      filter=filter).compute()
-        # for df in read_batches_from_parquet(bt_dataset,
-        #                                     columns,
-        #                                     int(self.parameters_dict['bt_batch_size']),
-        #                                     True, #self.cpu_num_workers,
-        #                                     filter=filter):
-        #     if not df.empty:
-        #         bt_df = bt_df.append(df)
+    def get_bt_current_data(self, bt_dataset, columns, bt_ids):
+        bt_df = pd.DataFrame()
+        if is_dir_exists(bt_dataset):
+            filter_bt_ids = [['bt_id', bt_ids], ]
+            # bt_df = read_all_from_parquet_delayed(dataset=bt_dataset,
+            #                                               columns=columns,
+            #                                               use_threads=True,#self.cpu_num_workers,
+                                                          # filter=filter).compute()
+            for df in read_batches_from_parquet(bt_dataset,
+                                                columns,
+                                                int(self.parameters_dict['bt_batch_size']),
+                                                True, #self.cpu_num_workers,
+                                                filter=filter_bt_ids):
+                if not df.empty:
+                    # print('bt_df.columns', bt_df.columns)
+                    # print('bt_df.info', bt_df.info())
+                    bt_df = bt_df.append(df)
+
         return bt_df
 
     def etl_be(self, source_id, bt_current_collection, bt_collection, source_collection, process_no, cpu_num_workers):
@@ -297,22 +309,31 @@ class StartBT:
         source_data_set = base_source_data_set + '\\SourceID=' + str(source_id) + '\\' + self.dnx_config.process_no_column_name + '=' + process_no
 
         bt_current_data_ddf = pd.DataFrame()
-        # bt_current_data_df = pd.DataFrame()
+        bt_current_data_df = pd.DataFrame()
         bt_current_collection_old = base_bt_current_data_set + "_old"
         if int(self.parameters_dict['get_delta']) == 1:
             if is_dir_exists(bt_current_collection_old):
-                bt_current_data_ddf = read_all_from_parquet_delayed(dataset=bt_current_collection_old,
-                                                                    columns=bt_columns,
-                                                                    filter=None,
-                                                                    nthreads=self.cpu_num_workers)
+                pass
+                # bt_current_data_ddf = read_all_from_parquet_delayed(dataset=bt_current_collection_old,
+                #                                                     columns=bt_columns,
+                #                                                     filter=None,
+                #                                                     nthreads=self.cpu_num_workers)
 
         if is_dir_exists(source_data_set):
-            # parallel_delayed_load_data = []
+            parallel_delayed_load_data = []
             for batch_no, get_source_data in enumerate(self.get_chunks_from_source_data(source_id, source_data_set)):
                 bt_current_data_set = base_bt_current_data_set
+
                 source_data_df, bt_ids = delayed(get_source_data[0]), delayed(get_source_data[1])
-                delayed_load_data = delayed(self.load_data)(source_data_df, bt_current_data_ddf, bt_data_set, bt_current_data_set, bt_current_collection_old, bt_ids)
-                self.parallel_delayed_load_data.append(delayed_load_data)
+                # if is_dir_exists(bt_current_collection_old):
+                    # bt_ids = delayed(data_to_list)(bt_ids['bt_id'])
+                    # bt_current_data_df = read_all_from_parquet_delayed(bt_current_collection_old, bt_columns, None)
+
+                # bt_current_data_df = delayed(self.get_bt_current_data)(bt_current_collection_old, bt_columns, bt_ids)
+
+                delayed_load_data = delayed(self.load_data)(source_data_df, bt_current_data_df, bt_data_set, bt_current_data_set, bt_current_collection_old, None)
+                parallel_delayed_load_data.append(delayed_load_data)
+            compute(*parallel_delayed_load_data, num_workers=cpu_num_workers)
 
     def get_be_ids(self):
         be_att_ids_query = "select distinct be_att_id from " + self.dnx_config.be_attributes_data_rules_lvls_collection + " where active = 1"
@@ -359,7 +380,7 @@ class StartBT:
                 parallel_etl_be.append(delayed_etl_be)
         # print('execute parallel ETLs')
         compute(*parallel_etl_be, num_workers=cpu_num_workers)
-        compute(*self.parallel_delayed_load_data, num_workers=cpu_num_workers)
+
         print('BT elapsed time:', datetime.datetime.now() - start_time)
         # return (mapping_be_source_ids)
 

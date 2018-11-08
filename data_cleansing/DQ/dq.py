@@ -265,7 +265,7 @@ class StartDQ:
                                           "\\is_issue=0"
 
             if is_dir_exists(partioned_dq_result_dataset):
-                rowkeys = read_all_from_parquet_delayed(partioned_dq_result_dataset, ['RowKey'], self.cpu_num_workers).compute()
+                rowkeys = read_all_from_parquet_delayed(partioned_dq_result_dataset, ['RowKey']).compute()
                 suffix = "_old"
                 if is_dir_exists(current_category_dataset):
                     bt_dataset_old = self.switch_dataset(current_category_dataset, suffix)
