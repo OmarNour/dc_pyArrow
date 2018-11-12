@@ -4,6 +4,7 @@ from data_cleansing.dc_methods.dc_methods import get_all_data_from_source, get_b
     get_files_in_dir, read_batches_from_parquet, save_to_parquet, delete_dataset, rename_dataset, single_quotes, result_cols, \
     read_all_from_parquet_delayed, read_all_from_parquet, is_dir_exists, bt_partioned_object_cols, result_object_cols, result_partition_cols, read_partioned_data_from_parquet
 import data_cleansing.DQ.data_rules.rules as dr
+import data_cleansing.BT.bt as bt
 # from pydrill.client import PyDrill
 # import swifter
 from dask.diagnostics import ProgressBar
@@ -48,36 +49,49 @@ class StartDQ:
             result_df['data_value_pattern'] = result_df['AttributeValue'].apply(self.get_data_value_pattern)
         return result_df
 
-    def get_source_categories(self):
+    @staticmethod
+    def get_source_categories(config_db_url, category_no=None):
         # t1.be_data_source_id source_id,
-        source_categories_query = "select distinct t1.category_no from " + \
-                           self.dnx_config.be_attributes_data_rules_collection + " t1 " +\
-                           " join " +self.dnx_config.be_data_sources_collection+ " t2 on t2._id = t1.be_data_source_id and t2.active = 1" \
-                           " where t1.active = 1 order by t1.be_data_source_id, t1.category_no"
+        source_categories_query = "select distinct t1.category_no from be_attributes_data_rules t1 " +\
+                           " join be_data_sources t2 on t2._id = t1.be_data_source_id and t2.active = 1" \
+                           " where t1.active = 1 "
+        order_by = " order by t1.be_data_source_id, t1.category_no"
+        if category_no:
+            source_categories_query = source_categories_query + " and t1.category_no = " + str(category_no)
+
+        source_categories_query = source_categories_query + order_by
         # print(source_categories_query)
-        source_categories = get_all_data_from_source(self.dnx_config.config_db_url, None, source_categories_query)
+        source_categories = get_all_data_from_source(config_db_url, None, source_categories_query)
 
         return source_categories
 
-    def get_be_att_ids(self, category_no):
-        be_att_ids_query = "select distinct t1.be_data_source_id, t1.be_att_id from " + \
-                           self.dnx_config.be_attributes_data_rules_collection + " t1 " + \
-                           " join " + self.dnx_config.be_data_sources_collection + " t2 on t2._id = t1.be_data_source_id and t2.active = 1" \
+    @staticmethod
+    def get_be_att_ids(config_db_url, category_no, source_id=None, be_att_id=None):
+        be_att_ids_query = "select distinct t1.be_data_source_id, t1.be_att_id from be_attributes_data_rules t1 " + \
+                           " join be_data_sources t2 on t2._id = t1.be_data_source_id and t2.active = 1" \
                                                                                    " where t1.active = 1" \
-                                                                                   " and t1.category_no = " + str(category_no) + \
-                           " order by be_data_source_id, t1.be_att_id"
-        be_att_ids = get_all_data_from_source(self.dnx_config.config_db_url, None, be_att_ids_query)
+                                                                                   " and t1.category_no = " + str(category_no)
+        if source_id and be_att_id:
+            be_att_ids_query = be_att_ids_query + " and t1.be_data_source_id = " + str(source_id) + " and t1.be_att_id = " + str(be_att_id)
+
+        order_by = " order by be_data_source_id, t1.be_att_id"
+        be_att_ids_query = be_att_ids_query + order_by
+
+        # print('be_att_ids_query', be_att_ids_query)
+        be_att_ids = get_all_data_from_source(config_db_url, None, be_att_ids_query)
 
         return be_att_ids
 
-    def get_source_category_rules(self, category_no):
-        data_rules_query = "select t1._id, t1.be_att_id, t1.be_data_source_id, join_with_f from " + \
-                           self.dnx_config.be_attributes_data_rules_collection + " t1 " + \
-                           " join " + self.dnx_config.be_data_sources_collection + " t2 on t2._id = t1.be_data_source_id and t2.active = 1" \
+    @staticmethod
+    def get_source_category_rules(config_db_url, category_no):
+        data_rules_query = "select t1._id, t1.be_att_id, t1.be_data_source_id, join_with_f from be_attributes_data_rules t1 " + \
+                           " join be_data_sources t2 on t2._id = t1.be_data_source_id and t2.active = 1" \
                                                                                    " where t1.active = 1" \
-                           " and t1.category_no = "+str(category_no)+ \
-                           " order by t1.be_data_source_id, be_att_id"
-        data_rules = get_all_data_from_source(self.dnx_config.config_db_url, None, data_rules_query)
+                           " and t1.category_no = "+str(category_no)
+
+        order_by = " order by t1.be_data_source_id, be_att_id"
+        data_rules_query = data_rules_query + order_by
+        data_rules = get_all_data_from_source(config_db_url, None, data_rules_query)
 
         return data_rules
 
@@ -185,12 +199,8 @@ class StartDQ:
                 self.insert_result_df(result_df, g_result, result_data_set, next_pass, next_fail, result_data_set_tmp, source_id, category_no, be_att_id)
         delete_dataset(result_data_set_tmp_old)
 
-    def execute_data_rules(self, data_rule, category_no):
+    def execute_data_rules(self, category_no, be_att_dr_id, source_id, join_with_f):
         # print('execute_data_rules started')
-        be_att_dr_id = data_rule['_id']
-        source_id = data_rule['be_data_source_id']
-        join_with_f = data_rule['join_with_f']
-
         be_data_rule_lvls_query = "select be_att_id, rule_id, next_pass, next_fail, kwargs from " + \
                                   self.dnx_config.be_attributes_data_rules_lvls_collection + \
                                   " where active = 1 and be_att_dr_id = " + str(be_att_dr_id) + " order by level_no"
@@ -274,25 +284,40 @@ class StartDQ:
                     bt_dataset_old = self.switch_dataset(current_category_dataset, suffix)
 
                     rowkeys = rowkeys.set_index('RowKey')
-                    parallel_delayed_upgrade_rowkeys = []
+                    # parallel_delayed_upgrade_rowkeys = []
                     for bt_current in read_batches_from_parquet(bt_dataset_old, None, int(self.parameters_dict['bt_batch_size']), True):
                         self.upgrade_rowkeys(bt_current, rowkeys, current_category_dataset, next_category_dataset)
                         # delayed_upgrade_rowkeys = delayed(self.upgrade_rowkeys)(delayed(bt_current), delayed(rowkeys), current_category_dataset, next_category_dataset)
-                        # parallel_delayed_upgrade_rowkeys.append(delayed_upgrade_rowkeys)
+                        # self.parallel_delayed_upgrade_rowkeys.append(delayed_upgrade_rowkeys)
                     # compute(*parallel_delayed_upgrade_rowkeys, num_workers=self.cpu_num_workers)
                     delete_dataset(bt_dataset_old)
 
-    def upgrade_rowkeys(self, bt_current, rowkeys, current_category_dataset, next_category_dataset):
+    def get_passed_faild(self, bt_current, rowkeys):
         bt_current_passed = bt_current[bt_current['RowKey'].isin(rowkeys.index)]
         bt_current_failed = bt_current[~bt_current.index.isin(bt_current_passed.index)]
+        return bt_current_passed, bt_current_failed
 
-        save_to_parquet(bt_current_failed, current_category_dataset, partition_cols=None, string_columns=bt_partioned_object_cols)
-        save_to_parquet(bt_current_passed, next_category_dataset, partition_cols=None, string_columns=bt_partioned_object_cols)
+    def upgrade_rowkeys(self, bt_current, rowkeys, current_category_dataset, next_category_dataset):
+        # bt_current_passed = bt_current[bt_current['RowKey'].isin(rowkeys.index)]
+        # bt_current_failed = bt_current[~bt_current.index.isin(bt_current_passed.index)]
+        passed_faild = self.get_passed_faild(bt_current, rowkeys)
 
-    def show_results(self):
+        save_to_parquet(passed_faild[1], current_category_dataset, partition_cols=None, string_columns=bt_partioned_object_cols)
+        # self.parallel_save_to_parquet.append(delayed_save_faild)
+
+        save_to_parquet(passed_faild[0], next_category_dataset, partition_cols=None, string_columns=bt_partioned_object_cols)
+        # self.parallel_save_to_parquet.append(delayed_save_passed)
+
+    @staticmethod
+    def show_results(config_db_url, result_db_path, org_business_entities_collection):
         print("**********************************************************************")
-
-        for result_path in self.all_result_data_set:
+        be_ids = bt.StartBT.get_be_ids(config_db_url)
+        for i, be_id in be_ids.iterrows():
+            be_id = be_id['be_id']
+            core_tables = get_be_core_table_names(config_db_url, org_business_entities_collection, be_id)
+            dq_result_collection = core_tables[3]
+            result_path = result_db_path + dq_result_collection
+            # result_path =None
             # result_path = "C:\\dc\\parquet_db\\Result\\result_4383_10"
             if is_dir_exists(result_path):
                 df1 = dd.read_parquet(path=result_path, engine='pyarrow')[['p_SourceID', 'p_AttributeID', 'p_ResetDQStage', 'p_be_att_dr_id', 'p_data_rule_id', 'p_is_issue', 'bt_id']]
@@ -305,36 +330,55 @@ class StartDQ:
                 print("----------------------------------------------------------------------")
         print("**********************************************************************")
 
-    def start_dq(self, process_no, cpu_num_workers):
+    def start_dq(self, process_no, cpu_num_workers, dq_type=None, dq_category_no=None, p_source_id=None, p_be_att_id=None,
+                 p_be_att_dr_id=None, p_join_with_f=None):
+        # print('process_no, cpu_num_workers, dq_type=None, dq_category_no=None')
+        # print(process_no, cpu_num_workers, dq_type, dq_category_no)
         self.cpu_num_workers = cpu_num_workers
         self.process_no = process_no
         self.rowkeys = pd.DataFrame()
         self.all_result_data_set = []
+        # self.parallel_delayed_upgrade_rowkeys = []
+        # self.parallel_save_to_parquet = []
 
-        source_categories = self.get_source_categories()
+        source_categories = self.get_source_categories(self.dnx_config.config_db_url, dq_category_no)
 
         for i, source_id_category_no in source_categories.iterrows():
-            # source_id = source_id_category_no['source_id']
             category_no = source_id_category_no['category_no']
+            # print('category_nocategory_no', category_no)
 
-            source_category_rules = self.get_source_category_rules(category_no)
-            parallel_execute_data_rules = []
-            for j, data_rule in source_category_rules.iterrows():
-                delayed_execute_data_rules = delayed(self.execute_data_rules)(data_rule, category_no)
-                parallel_execute_data_rules.append(delayed_execute_data_rules)
-            print('execute rules for category #', category_no)
-            with ProgressBar():
-                compute(*parallel_execute_data_rules, num_workers=self.cpu_num_workers)
+            if dq_type == 1 or dq_type is None:
+                print('execute rules for category #', category_no, p_be_att_dr_id, p_source_id, p_join_with_f)
+                self.execute_data_rules(category_no, p_be_att_dr_id, p_source_id, p_join_with_f)
 
-            source_id_be_att_ids = self.get_be_att_ids(category_no)
-            parallel_execute_upgrade_category = []
-            for k, source_id_be_att_id in source_id_be_att_ids.iterrows():
-                be_att_id = source_id_be_att_id['be_att_id']
-                source_id = source_id_be_att_id['be_data_source_id']
-                delayed_upgrade = delayed(self.upgrade_category)(source_id, category_no, be_att_id)
-                parallel_execute_upgrade_category.append(delayed_upgrade)
-            print('upgrade from category #', category_no)
-            with ProgressBar():
-                compute(*parallel_execute_upgrade_category, num_workers=self.cpu_num_workers)
+                # source_category_rules = self.get_source_category_rules(self.dnx_config.config_db_url, category_no)
+                # parallel_execute_data_rules = []
+                # for j, data_rule in source_category_rules.iterrows():
+                #     be_att_dr_id = data_rule['_id']
+                #     source_id = data_rule['be_data_source_id']
+                #     join_with_f = data_rule['join_with_f']
+                #
+                #     delayed_execute_data_rules = delayed(self.execute_data_rules)(category_no, be_att_dr_id, source_id, join_with_f)
+                #     parallel_execute_data_rules.append(delayed_execute_data_rules)
+                # print('execute rules for category #', category_no)
+                # with ProgressBar():
+                #     compute(*parallel_execute_data_rules, num_workers=self.cpu_num_workers)
 
-        self.show_results()
+            if dq_type == 2 or dq_type is None:
+                source_id_be_att_ids = self.get_be_att_ids(self.dnx_config.config_db_url, category_no, p_source_id, p_be_att_id)
+                # parallel_execute_upgrade_category = []
+                for k, source_id_be_att_id in source_id_be_att_ids.iterrows():
+                    be_att_id = source_id_be_att_id['be_att_id']
+                    source_id = source_id_be_att_id['be_data_source_id']
+                    print('upgrade from category #', source_id, category_no, be_att_id)
+                    self.upgrade_category(source_id, category_no, be_att_id)
+
+                    # delayed_upgrade = delayed(self.upgrade_category)(source_id, category_no, be_att_id)
+                    # parallel_execute_upgrade_category.append(delayed_upgrade)
+                # print('upgrade from category #', category_no)
+                # with ProgressBar():
+                #     compute(*parallel_execute_upgrade_category, num_workers=self.cpu_num_workers)
+                #     compute(*self.parallel_delayed_upgrade_rowkeys, num_workers=self.cpu_num_workers)
+                #     compute(*self.parallel_save_to_parquet, num_workers=self.cpu_num_workers)
+
+        # self.show_results()

@@ -66,7 +66,7 @@ class StartBT:
         return row_key_column_name
 
     def load_source_data(self, no_of_cores=1, cpu_num_workers=1):
-        be_ids = self.get_be_ids()
+        be_ids = self.get_be_ids(self.dnx_config.config_db_url)
         parallel_prepare_and_save_src_data = []
         for i, be_id in be_ids.iterrows():
             be_id = be_id['be_id']
@@ -86,8 +86,8 @@ class StartBT:
                 delete_dataset(source_data_set)
                 delete_dataset(src_f_data_set)
                 for file_seq, chunk_data in enumerate(get_chuncks_of_data_from_source(source_url, source_schema, source_query, int(self.parameters_dict['source_batch_size']))):
-                    chunk_data = delayed(chunk_data)
-                    delayed_prepare_and_save_src_data = delayed(self.prepare_and_save_src_data)(source_id, chunk_data, row_key_column_name, f_col, no_of_cores, source_data_set, src_f_data_set)
+                    # chunk_data = delayed(chunk_data)
+                    delayed_prepare_and_save_src_data = delayed(self.prepare_and_save_src_data)(source_id, delayed(chunk_data), row_key_column_name, f_col, no_of_cores, source_data_set, src_f_data_set)
                     parallel_prepare_and_save_src_data.append(delayed_prepare_and_save_src_data)
         with ProgressBar():
             compute(*parallel_prepare_and_save_src_data, num_workers=cpu_num_workers)
@@ -338,15 +338,16 @@ class StartBT:
             with ProgressBar():
                 compute(*parallel_delayed_load_data, num_workers=cpu_num_workers)
 
-    def get_be_ids(self):
-        be_att_ids_query = "select distinct be_att_id from " + self.dnx_config.be_attributes_data_rules_lvls_collection + " where active = 1"
-        be_att_ids = get_all_data_from_source(self.dnx_config.config_db_url, None, be_att_ids_query)
+    @staticmethod
+    def get_be_ids(config_db_url):
+        be_att_ids_query = "select distinct be_att_id from be_attributes_data_rules_lvls where active = 1"
+        be_att_ids = get_all_data_from_source(config_db_url, None, be_att_ids_query)
 
         list_be_att_ids = data_to_list(be_att_ids['be_att_id'])
         in_list = list_to_string(list_be_att_ids, ", ", 1)
-        be_ids_query = 'select distinct be_id from ' + self.dnx_config.be_attributes_collection + ' where _id in (' + in_list + ')'
+        be_ids_query = "select distinct be_id from be_attributes where _id in (" + in_list + ")"
         # print(be_ids_query)
-        be_ids = get_all_data_from_source(self.dnx_config.config_db_url, None, be_ids_query)
+        be_ids = get_all_data_from_source(config_db_url, None, be_ids_query)
         return be_ids
 
     def get_be_source_ids(self,be_id):
@@ -362,7 +363,7 @@ class StartBT:
 
     def start_bt(self, process_no, cpu_num_workers):
         start_time = datetime.datetime.now()
-        be_ids = self.get_be_ids()
+        be_ids = self.get_be_ids(self.dnx_config.config_db_url)
         self.process_no = process_no
         self.cpu_num_workers = cpu_num_workers
         self.parallel_delayed_load_data = []
