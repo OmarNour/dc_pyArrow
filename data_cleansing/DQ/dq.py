@@ -10,7 +10,6 @@ from dask.diagnostics import ProgressBar
 from dask import compute, delayed, dataframe as dd
 
 
-
 class StartDQ:
     def __init__(self):
         pd.set_option('mode.chained_assignment', None)
@@ -277,9 +276,10 @@ class StartDQ:
                     rowkeys = rowkeys.set_index('RowKey')
                     parallel_delayed_upgrade_rowkeys = []
                     for bt_current in read_batches_from_parquet(bt_dataset_old, None, int(self.parameters_dict['bt_batch_size']), True):
-                        delayed_upgrade_rowkeys = delayed(self.upgrade_rowkeys)(delayed(bt_current), delayed(rowkeys), current_category_dataset, next_category_dataset)
-                        parallel_delayed_upgrade_rowkeys.append(delayed_upgrade_rowkeys)
-                    compute(*parallel_delayed_upgrade_rowkeys, num_workers=self.cpu_num_workers)
+                        self.upgrade_rowkeys(bt_current, rowkeys, current_category_dataset, next_category_dataset)
+                        # delayed_upgrade_rowkeys = delayed(self.upgrade_rowkeys)(delayed(bt_current), delayed(rowkeys), current_category_dataset, next_category_dataset)
+                        # parallel_delayed_upgrade_rowkeys.append(delayed_upgrade_rowkeys)
+                    # compute(*parallel_delayed_upgrade_rowkeys, num_workers=self.cpu_num_workers)
                     delete_dataset(bt_dataset_old)
 
     def upgrade_rowkeys(self, bt_current, rowkeys, current_category_dataset, next_category_dataset):
@@ -288,7 +288,6 @@ class StartDQ:
 
         save_to_parquet(bt_current_failed, current_category_dataset, partition_cols=None, string_columns=bt_partioned_object_cols)
         save_to_parquet(bt_current_passed, next_category_dataset, partition_cols=None, string_columns=bt_partioned_object_cols)
-
 
     def show_results(self):
         print("**********************************************************************")
