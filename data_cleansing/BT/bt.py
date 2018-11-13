@@ -338,6 +338,7 @@ class StartBT:
                 parallel_delayed_load_data.append(delayed_load_data)
             with ProgressBar():
                 compute(*parallel_delayed_load_data, num_workers=cpu_num_workers)
+            delete_dataset(bt_current_collection_old)
 
     @staticmethod
     def get_be_ids(config_db_url, p_be_id=None):
