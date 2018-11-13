@@ -10,6 +10,7 @@ import datetime
 import math
 import data_cleansing.dc_methods.dc_methods as dc_methods
 import data_cleansing.DQ.dq as dq
+import data_cleansing.BT.bt as bt
 
 
 def get_cpu_count_cpu_num_workers(config_db_url, parameters_collection, no_of_subprocess=None):
@@ -56,6 +57,19 @@ def dc_multiprocessing(to_run, no_of_subprocess=None, inputs="", desc=None, dq_t
             process_dict[process_no] = subprocess.Popen(['python',
                                                          to_run,
                                                          all_inputs])
+    elif dq_type == 0:
+        be_ids = bt.StartBT.get_be_ids(dnx_config.config_db_url)
+        for p, be_id in be_ids.iterrows():
+            be_id = be_id['be_id']
+
+            process_list.append(p)
+            process_no = str(p)
+            main_inputs = " process_no=" + process_no + " cpu_num_workers=" + str(cpu_num_workers) + " "
+            all_inputs = main_inputs + inputs + " be_id=" + str(be_id)
+            process_dict[process_no] = subprocess.Popen(['python',
+                                                         to_run,
+                                                         all_inputs])
+
     elif dq_type == 1:
         source_category_rules = dq.StartDQ.get_source_category_rules(dnx_config.config_db_url, category_no)
         for p, data_rule in source_category_rules.iterrows():
@@ -141,7 +155,7 @@ if __name__ == '__main__':
                 to_run = module_path + '/load_source_data/load_source_data.py'
                 inputs = "cpu_count=" + str(bt_cpu_count)
                 print('start loading data from sources ...')
-                dc_multiprocessing(to_run, no_of_subprocess=1, inputs=inputs, desc=None)
+                dc_multiprocessing(to_run, no_of_subprocess=1, inputs=inputs, desc=None, dq_type=0)
                 load_source_data_end_time = datetime.datetime.now()
 
             # config_database[dnx_config.multiprocessing_collection].drop()

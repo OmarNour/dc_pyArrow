@@ -370,7 +370,7 @@ class StartDQ:
                 for k, source_id_be_att_id in source_id_be_att_ids.iterrows():
                     be_att_id = source_id_be_att_id['be_att_id']
                     source_id = source_id_be_att_id['be_data_source_id']
-                    print('upgrade from category #', source_id, category_no, be_att_id)
+                    print('upgrade from category #', category_no, source_id, be_att_id)
                     self.upgrade_category(source_id, category_no, be_att_id)
 
                     # delayed_upgrade = delayed(self.upgrade_category)(source_id, category_no, be_att_id)

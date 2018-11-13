@@ -7,10 +7,12 @@ if __name__ == '__main__':
     try:
         cpu_count = all_inputs['cpu_count']
         cpu_num_workers = all_inputs['cpu_num_workers']
+        be_id = all_inputs['be_id']
         # cpu_count = int(sys.argv[1])
     except:
         cpu_count = 1
         cpu_num_workers = 1
+        be_id = None
 
     start_bt = StartBT()
-    start_bt.load_source_data(cpu_count, cpu_num_workers)
+    start_bt.load_source_data(be_id, cpu_count, cpu_num_workers)

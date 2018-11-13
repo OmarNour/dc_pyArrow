@@ -65,8 +65,9 @@ class StartBT:
         row_key_column_name = list_to_string(row_key_column_data['query_column_name'].values)
         return row_key_column_name
 
-    def load_source_data(self, no_of_cores=1, cpu_num_workers=1):
-        be_ids = self.get_be_ids(self.dnx_config.config_db_url)
+    def load_source_data(self, p_be_id=None, no_of_cores=1, cpu_num_workers=1):
+        print('start loading BT:', p_be_id)
+        be_ids = self.get_be_ids(self.dnx_config.config_db_url, p_be_id)
         parallel_prepare_and_save_src_data = []
         for i, be_id in be_ids.iterrows():
             be_id = be_id['be_id']
@@ -339,13 +340,15 @@ class StartBT:
                 compute(*parallel_delayed_load_data, num_workers=cpu_num_workers)
 
     @staticmethod
-    def get_be_ids(config_db_url):
+    def get_be_ids(config_db_url, p_be_id=None):
         be_att_ids_query = "select distinct be_att_id from be_attributes_data_rules_lvls where active = 1"
         be_att_ids = get_all_data_from_source(config_db_url, None, be_att_ids_query)
 
         list_be_att_ids = data_to_list(be_att_ids['be_att_id'])
         in_list = list_to_string(list_be_att_ids, ", ", 1)
         be_ids_query = "select distinct be_id from be_attributes where _id in (" + in_list + ")"
+        if p_be_id:
+            be_ids_query = be_ids_query + " and be_id = " + str(p_be_id)
         # print(be_ids_query)
         be_ids = get_all_data_from_source(config_db_url, None, be_ids_query)
         return be_ids
