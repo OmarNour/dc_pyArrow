@@ -111,7 +111,8 @@ class StartBT:
         df_melt_result['ValidFrom'] = datetime.datetime.now().isoformat()
         df_melt_result['ValidTo'] = None
         df_melt_result['bt_id'] = 0
-        df_melt_result[self.dnx_config.process_no_column_name] = self.process_no
+        # df_melt_result[self.dnx_config.process_no_column_name] = self.process_no
+        df_melt_result[self.dnx_config.process_no_column_name] = df_melt_result.apply(lambda x: assign_process_no(self.cpu_count, x.name), axis=1)
         # df_melt_result['ResetDQStage'] = 0
         return df_melt_result
 
@@ -121,9 +122,9 @@ class StartBT:
         data_sources_mapping_data = get_all_data_from_source(self.dnx_config.config_db_url, None, query)
 
         data_sources_mapping_data['ResetDQStage'] = data_sources_mapping_data.apply(lambda row: get_minimum_category(self.dnx_config.config_db_url,
-                                                                                                                             "",
-                                                                                                                             self.dnx_config.be_attributes_data_rules_collection,
-                                                                                                                             row['be_att_id']), axis=1)
+                                                                                                                     "",
+                                                                                                                     self.dnx_config.be_attributes_data_rules_collection,
+                                                                                                                     row['be_att_id']), axis=1)
         data_sources_mapping_data = data_sources_mapping_data.rename(index=str, columns={"query_column_name": "AttributeName", "be_att_id": "AttributeID"})
         return data_sources_mapping_data
 
@@ -365,12 +366,13 @@ class StartBT:
         # print('mapping_be_source_ids_query', mapping_be_source_ids_query)
         return be_source_ids
 
-    def start_bt(self, process_no, cpu_num_workers):
+    def start_bt(self, process_no, cpu_num_workers, cpu_count):
         start_time = datetime.datetime.now()
         be_ids = self.get_be_ids(self.dnx_config.config_db_url)
         self.process_no = process_no
         self.cpu_num_workers = cpu_num_workers
         self.parallel_delayed_load_data = []
+        self.cpu_count = cpu_count
         parallel_etl_be = []
         for i, be_id in be_ids.iterrows():
             be_id = be_id['be_id']

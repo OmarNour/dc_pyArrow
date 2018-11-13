@@ -66,6 +66,11 @@ if __name__ == '__main__':
         cpu_num_workers = all_inputs['cpu_num_workers']#int(sys.argv[4])
     except:
         cpu_num_workers = -1
+
+    try:
+        cpu_count = all_inputs['cpu_count']#int(sys.argv[4])
+    except:
+        cpu_count = -1
     # print(sys.modules)
     # print('module_path', os.path.dirname(sys.modules['data_cleansing.BT'].__file__))
     # BT = 1
@@ -74,7 +79,7 @@ if __name__ == '__main__':
         # BT_time = datetime.datetime.now()
         bt = StartBT()
         # bt.load_source_data() ########### for teting only from this file
-        bt.start_bt(str(process_no), cpu_num_workers)
+        bt.start_bt(str(process_no), cpu_num_workers, cpu_count)
         # print('----------------     BT_time:', datetime.datetime.now() - BT_time, '      ----------------')
     if DQ == 1:
         # DQ_time = datetime.datetime.now()

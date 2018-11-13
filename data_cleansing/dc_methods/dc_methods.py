@@ -19,15 +19,15 @@ bt_object_cols = ['RowKey', 'AttributeValue', 'HashValue',
                                'InsertedBy', 'ModifiedBy', 'ValidFrom', 'ValidTo', 'process_no']
 
 bt_partioned_object_cols = ['RowKey', 'AttributeValue', 'HashValue',
-                               'InsertedBy', 'ModifiedBy', 'ValidFrom', 'ValidTo', 'process_no']
+                               'InsertedBy', 'ModifiedBy', 'ValidFrom', 'ValidTo',]
 
 
 # bt_partition_cols = ['batch_no', 'SourceID', 'ResetDQStage', 'AttributeID']
-bt_partition_cols = ['SourceID', 'AttributeID', 'ResetDQStage', ]
+bt_partition_cols = ['SourceID', 'AttributeID', 'ResetDQStage', 'process_no']
 
 result_cols = ['SourceID', 'AttributeID', 'ResetDQStage', 'bt_id', 'be_att_dr_id', 'data_rule_id', 'RowKey', 'AttributeValue',
-               'data_value_pattern', 'is_issue', 'p_SourceID', 'p_AttributeID', 'p_ResetDQStage', 'p_is_issue', 'p_be_att_dr_id', 'p_data_rule_id']
-result_partition_cols = ['SourceID', 'AttributeID', 'ResetDQStage', 'is_issue', 'be_att_dr_id', 'data_rule_id']
+               'data_value_pattern', 'is_issue', 'p_SourceID', 'p_AttributeID', 'p_ResetDQStage', 'p_is_issue', 'p_be_att_dr_id', 'p_data_rule_id', 'process_no']
+result_partition_cols = ['SourceID', 'AttributeID', 'ResetDQStage', 'process_no', 'is_issue', 'be_att_dr_id', 'data_rule_id']
 p_result_partition_cols = ['p_SourceID', 'p_AttributeID', 'p_ResetDQStage']
 
 result_object_cols = ['SourceID', 'RowKey', 'AttributeValue', 'data_value_pattern']

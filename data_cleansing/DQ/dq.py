@@ -45,6 +45,7 @@ class StartDQ:
             result_df = bt_current_data_df
             result_df['be_att_dr_id'] = be_att_dr_id
             result_df['data_rule_id'] = data_rule_id
+            result_df['process_no'] = self.process_no
             result_df['is_issue'] = result_df.apply(lambda x: dr.rules_orchestrate(data_rule_id, x['AttributeValue'], x['RowKey'], x, kwargs_dic), axis=1)
             result_df['data_value_pattern'] = result_df['AttributeValue'].apply(self.get_data_value_pattern)
         return result_df
@@ -104,7 +105,8 @@ class StartDQ:
         complete_dataset = bt_dataset + \
                            "\\SourceID=" + str(source_id) +\
                            "\\AttributeID=" + str(be_att_id) +\
-                           "\\ResetDQStage=" + str(category_no)
+                           "\\ResetDQStage=" + str(category_no) +\
+                           "\\process_no="+str(self.process_no)
         # print('complete_dataset', complete_dataset)
         if is_dir_exists(complete_dataset):
             # print('src_f_data', src_f_data.compute().columns)
@@ -176,7 +178,7 @@ class StartDQ:
         # print('++++++++ be_att_id:', be_att_id, 'rule_id:', rule_id, 'g_result:', g_result, 'current_lvl_no:', current_lvl_no,
         #       'next_pass:', next_pass, 'next_fail:', next_fail)
 
-        result_data_set_tmp = result_data_set_tmp+"_"+str(be_att_dr_id)
+        result_data_set_tmp = result_data_set_tmp+"_"+str(be_att_dr_id)+"_process_no_"+str(self.process_no)
 
         suffix = "_old"
         result_data_set_tmp_old = self.switch_dataset(result_data_set_tmp, suffix)
@@ -228,7 +230,7 @@ class StartDQ:
             base_bt_current_data_set = self.dnx_db_path + bt_current_collection
             src_f_data_set = self.src_f_db_path + source_collection + "\\SourceID=" + str(source_id)
             result_data_set = self.result_db_path + dq_result_collection
-            self.all_result_data_set.append(result_data_set) if result_data_set not in self.all_result_data_set else None
+            # self.all_result_data_set.append(result_data_set) if result_data_set not in self.all_result_data_set else None
             result_data_set_tmp = result_data_set + "_tmp"
 
             if current_lvl_no == 1 and join_with_f == 1:
@@ -267,19 +269,23 @@ class StartDQ:
         bt_current_dataset = self.dnx_db_path + core_tables[0]
         if is_dir_exists(bt_current_dataset):
             next_cat = self.get_next_be_att_id_category(source_id, be_att_id, category_no)
-            current_category_dataset = bt_current_dataset + "\\SourceID=" + str(source_id) + "\\AttributeID=" + str(be_att_id) + "\\ResetDQStage=" + str(category_no)
-            next_category_dataset = bt_current_dataset + "\\SourceID=" + str(source_id) + "\\AttributeID=" + str(be_att_id) + "\\ResetDQStage=" + str(next_cat)
+            current_category_dataset = bt_current_dataset + "\\SourceID=" + str(source_id) + "\\AttributeID=" + str(be_att_id) + "\\ResetDQStage=" + str(category_no) + "\\process_no="+str(self.process_no)
+            next_category_dataset = bt_current_dataset + "\\SourceID=" + str(source_id) + "\\AttributeID=" + str(be_att_id) + "\\ResetDQStage=" + str(next_cat) + "\\process_no="+str(self.process_no)
             dq_result_dataset = self.result_db_path + core_tables[3]
 
             partioned_dq_result_dataset = dq_result_dataset + \
                                           "\\SourceID=" + str(source_id) + \
                                           "\\AttributeID=" + str(be_att_id) + \
                                           "\\ResetDQStage=" + str(category_no) + \
+                                          "\\process_no="+str(self.process_no) +\
                                           "\\is_issue=0"
 
+
             if is_dir_exists(partioned_dq_result_dataset):
-                rowkeys = read_all_from_parquet_delayed(partioned_dq_result_dataset, ['RowKey']).compute()
+                rowkeys = read_all_from_parquet(partioned_dq_result_dataset, ['RowKey'], True, filter=None)
+                # rowkeys = read_all_from_parquet_delayed(partioned_dq_result_dataset, ['RowKey']).compute()
                 suffix = "_old"
+                # bt_dataset_old = current_category_dataset+suffix
                 if is_dir_exists(current_category_dataset):
                     bt_dataset_old = self.switch_dataset(current_category_dataset, suffix)
 
@@ -294,6 +300,7 @@ class StartDQ:
 
     def get_passed_faild(self, bt_current, rowkeys):
         bt_current_passed = bt_current[bt_current['RowKey'].isin(rowkeys.index)]
+        bt_current_passed['process_no'] = self.process_no
         bt_current_failed = bt_current[~bt_current.index.isin(bt_current_passed.index)]
         return bt_current_passed, bt_current_failed
 
