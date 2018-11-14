@@ -111,8 +111,8 @@ class StartBT:
         df_melt_result['ValidFrom'] = datetime.datetime.now().isoformat()
         df_melt_result['ValidTo'] = None
         df_melt_result['bt_id'] = 0
-        # df_melt_result[self.dnx_config.process_no_column_name] = self.process_no
-        df_melt_result[self.dnx_config.process_no_column_name] = df_melt_result.apply(lambda x: assign_process_no(self.cpu_count, x.name), axis=1)
+        df_melt_result[self.dnx_config.process_no_column_name] = self.process_no
+        # df_melt_result[self.dnx_config.process_no_column_name] = df_melt_result.apply(lambda x: assign_process_no(self.cpu_count, x.name), axis=1)
         # df_melt_result['ResetDQStage'] = 0
         return df_melt_result
 
