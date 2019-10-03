@@ -5,7 +5,7 @@ import shutil
 import datetime
 import pyarrow.parquet as pq
 import pyarrow as pa
-from pydrill.client import PyDrill
+# from pydrill.client import PyDrill
 import os, sys
 import dask.dataframe as dd
 

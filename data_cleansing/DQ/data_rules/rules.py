@@ -1,7 +1,8 @@
 import data_cleansing.dc_methods.dc_methods as dc_methods
 import data_cleansing.CONFIG.Config as DNXConfig
-from pydrill.client import PyDrill
+# from pydrill.client import PyDrill
 import re
+
 
 def rules_orchestrate(rule_id, att_value, RowKey, f_cols, kwargs):
 
